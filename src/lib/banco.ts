@@ -226,6 +226,12 @@ function bancoDemo(): Banco {
   let estado = ler();
   // Quem já tinha entrado antes dos perfis continua como Gestão.
   if (estado.usuario && !estado.usuario.papel) estado.usuario.papel = "gestao";
+  // A Praça deixou de ser local do Don e virou casa própria.
+  estado.eventos = estado.eventos.map((e) =>
+    e.local === "Praça" || (["ex6", "ex33"].includes(e.id) && e.casas.join() === "don")
+      ? { ...e, casas: e.casas.map((c) => (c === "don" ? "praca" : c)), local: undefined }
+      : e,
+  );
   const ouvintes = new Set<(u: Usuario | null) => void>();
   const gravar = () => {
     try {

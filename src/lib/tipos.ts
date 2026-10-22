@@ -17,7 +17,7 @@ export interface Casa {
 export const CASAS: Casa[] = [
   { id: "downtown", nome: "Downtown", curto: "DT", aba: "downtown", cor: "#2f6fde", locais: [] },
   { id: "downtown_2p", nome: "Downtown 2 pistas", curto: "DT 2P", aba: "downtown2p", tambemEm: ["downtown", "don"], cor: "#2e9e5b", locais: [] },
-  { id: "don", nome: "Don Under Pub", curto: "Don", aba: "don", cor: "#c81e2b", locais: ["Pista", "Beco", "Praça"] },
+  { id: "don", nome: "Don Under Pub", curto: "Don", aba: "don", cor: "#c81e2b", locais: ["Pista", "Beco"] },
   { id: "don_2p", nome: "Don Under Pub 2 pistas", curto: "Don 2P", aba: "don2p", tambemEm: ["don", "downtown"], cor: "#ee6a1f", locais: [] },
   { id: "calcada_av", nome: "Calçada Antônio da Veiga", curto: "Calç. AV", aba: "calcada", cor: "#c9a227", locais: [] },
   { id: "calcada_ke", nome: "Calçada Kurt Ehring", curto: "Calç. KE", aba: "calcada", cor: "#9c7c14", locais: [] },
