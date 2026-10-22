@@ -105,7 +105,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--destaque); 
   text-overflow: ellipsis;
 }
 .chip b { font-weight: 700; opacity: 0.85; }
-.chip.cancelado { text-decoration: line-through; opacity: 0.5; }
 .mais { font-size: 11px; color: var(--texto-2); }
 
 .legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; color: var(--texto-2); font-size: 13px; }
@@ -128,10 +127,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--destaque); 
 .cartao .linha { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .cartao .atracoes, .cartao .detalhe { font-size: 13px; color: var(--texto-2); }
 .status { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--borda); }
-.s-confirmado, .s-realizado { background: #1f4d36; color: #9be3bd; }
+.s-confirmado { background: #1f4d36; color: #9be3bd; }
 .s-negociando { background: #4d3b14; color: #f5cf7a; }
-.s-divulgando { background: #233c63; color: #a9c8ff; }
-.s-cancelado { background: #4d1f22; color: #f3a3a6; }
 .marcar { justify-self: start; font-size: 13px; }
 .nova-data { display: grid; gap: 8px; }
 .botoes { display: flex; gap: 8px; justify-content: flex-end; }

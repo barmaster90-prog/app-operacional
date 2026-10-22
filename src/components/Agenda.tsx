@@ -153,7 +153,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                     {evs.slice(0, 3).map((e) => (
                       <span
                         key={e.id}
-                        className={`chip ${e.status === "Cancelado" ? "cancelado" : ""}`}
+                        className="chip"
                         style={{ background: casa(e.casas[0]).cor, borderRight: e.casas[1] ? `6px solid ${casa(e.casas[1]).cor}` : undefined }}
                         title={`${rotuloCasas(e)}: ${e.nome}`}
                       >

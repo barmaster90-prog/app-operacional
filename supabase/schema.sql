@@ -8,7 +8,7 @@ create table if not exists public.eventos (
   nome text not null,
   tipo text,
   status text not null default 'Ideia'
-    check (status in ('Ideia', 'Negociando', 'Confirmado', 'Divulgando', 'Realizado', 'Cancelado')),
+    check (status in ('Ideia', 'Negociando', 'Confirmado')),
   horario text,
   atracoes jsonb not null default '[]'::jsonb,
   entrada text,

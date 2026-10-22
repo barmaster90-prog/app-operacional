@@ -36,10 +36,10 @@ export function casa(id: CasaId): Casa {
   return CASAS.find((c) => c.id === id)!;
 }
 
-export const STATUS = ["Ideia", "Negociando", "Confirmado", "Divulgando", "Realizado", "Cancelado"] as const;
+export const STATUS = ["Ideia", "Negociando", "Confirmado"] as const;
 export type Status = (typeof STATUS)[number];
 
-export const TIPOS_EVENTO = ["Interna", "Parceiros", "Universitária", "Temático sazonal", "Música ao vivo", "Outro"];
+export const TIPOS_EVENTO = ["Interna", "Parceiros", "Universitária", "Temático sazonal", "Outro"];
 
 export interface Atracao {
   nome: string;
