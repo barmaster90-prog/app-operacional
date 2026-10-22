@@ -76,6 +76,10 @@ export function PainelDia({ data, eventos, especiais, onFechar, onNovo, onEditar
                 <span className="linha">
                   {e.horario && <span>{e.horario}</span>}
                   <span className={`status s-${e.status.toLowerCase()}`}>{e.status}</span>
+                  <span className="arte">
+                    <span className={`sinal ${e.em_producao ? "sim" : "nao"}`} aria-hidden="true" />
+                    {e.em_producao ? "Arte em produção" : "Arte em aberto"}
+                  </span>
                 </span>
                 {e.atracoes.length > 0 && <span className="atracoes">{e.atracoes.map((a) => a.nome).join(", ")}</span>}
                 {e.entrada && <span className="detalhe">Entrada: {e.entrada}</span>}

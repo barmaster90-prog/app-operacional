@@ -157,6 +157,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                         style={{ background: casa(e.casas[0]).cor, borderRight: e.casas[1] ? `6px solid ${casa(e.casas[1]).cor}` : undefined }}
                         title={`${rotuloCasas(e)}: ${e.nome}`}
                       >
+                        {e.data >= hoje && <span className={`sinal ${e.em_producao ? "sim" : "nao"}`} aria-hidden="true" />}
                         {(aba === "geral" || casa(e.casas[0]).aba !== aba) && <b>{rotuloCasas(e)}</b>} {e.nome}
                       </span>
                     ))}
@@ -190,6 +191,8 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
         <FormEvento
           inicial={editando}
           usuario={usuario}
+          datasExtras={datasCadastradas}
+          onMudou={carregar}
           onFechar={() => setEditando(null)}
           onSalvo={async () => {
             setEditando(null);

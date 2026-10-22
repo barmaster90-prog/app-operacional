@@ -2,12 +2,17 @@ import { useState, type FormEvent } from "react";
 import { banco, type Usuario } from "../lib/banco.ts";
 import { CASAS, STATUS, TIPOS_EVENTO, casa, type Atracao, type CasaId, type Evento, type Status } from "../lib/tipos.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
+import type { DataEspecial } from "../lib/feriados.ts";
+import { MaterialEvento } from "./MaterialEvento.tsx";
 
 interface Props {
   inicial: Partial<Evento>;
   usuario: Usuario;
+  datasExtras: DataEspecial[];
   onFechar(): void;
   onSalvo(): void;
+  /** Avisa que algo mudou sem fechar a ficha (ex.: o Material). */
+  onMudou(): void;
 }
 
 function lerReais(texto: string): number | null {
@@ -16,7 +21,7 @@ function lerReais(texto: string): number | null {
   return limpo && Number.isFinite(n) ? n : null;
 }
 
-export function FormEvento({ inicial, usuario, onFechar, onSalvo }: Props) {
+export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, onMudou }: Props) {
   const [ev, setEv] = useState<Partial<Evento>>({ atracoes: [], casas: ["downtown"], status: "Ideia", ...inicial });
   const [atracoes, setAtracoes] = useState<{ nome: string; cache: string; obs: string }[]>(
     (inicial.atracoes ?? []).map((a) => ({ nome: a.nome, cache: a.cache != null ? String(a.cache) : "", obs: a.obs ?? "" })),
@@ -24,6 +29,8 @@ export function FormEvento({ inicial, usuario, onFechar, onSalvo }: Props) {
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [confirmarApagar, setConfirmarApagar] = useState(false);
+  const [abrirMaterial, setAbrirMaterial] = useState(false);
+  const [emProducao, setEmProducao] = useState(Boolean(inicial.em_producao));
   const editando = Boolean(ev.id);
 
   const set = <K extends keyof Evento>(k: K, v: Evento[K]) => setEv((x) => ({ ...x, [k]: v }));
@@ -58,8 +65,6 @@ export function FormEvento({ inicial, usuario, onFechar, onSalvo }: Props) {
         atracoes: lista,
         entrada: ev.entrada || undefined,
         promocao: ev.promocao || undefined,
-        briefing: ev.briefing || undefined,
-        obs: ev.obs || undefined,
         criado_por: ev.criado_por ?? usuario.nome,
       });
       onSalvo();
@@ -170,15 +175,23 @@ export function FormEvento({ inicial, usuario, onFechar, onSalvo }: Props) {
             <input value={ev.promocao ?? ""} onChange={(e) => set("promocao", e.target.value)} placeholder="Ex.: Cuba libre R$ 10 até 00h" />
           </label>
 
-          <label className="inteiro">
-            Informações para arte e vídeo
-            <textarea value={ev.briefing ?? ""} onChange={(e) => set("briefing", e.target.value)} rows={3} />
-          </label>
-
-          <label className="inteiro">
-            Observações
-            <textarea value={ev.obs ?? ""} onChange={(e) => set("obs", e.target.value)} rows={2} />
-          </label>
+          <div className="inteiro secoes">
+            <button
+              type="button"
+              className="secao"
+              disabled={!ev.id}
+              onClick={() => setAbrirMaterial(true)}
+              title={ev.id ? "" : "Salve o evento primeiro"}
+            >
+              <span className={`sinal ${emProducao ? "sim" : "nao"}`} aria-hidden="true" />
+              <strong>Material</strong>
+              <small>{!ev.id ? "Salve o evento para abrir" : emProducao ? "Arte em produção" : "Arte em aberto"}</small>
+            </button>
+            <button type="button" className="secao" disabled>
+              <strong>Divulgação</strong>
+              <small>Em breve</small>
+            </button>
+          </div>
         </div>
 
         {erro && <p className="erro">{erro}</p>}
@@ -195,6 +208,20 @@ export function FormEvento({ inicial, usuario, onFechar, onSalvo }: Props) {
           <button className="primario" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>
         </div>
       </form>
+      {abrirMaterial && ev.id && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <MaterialEvento
+            evento={{ ...(ev as Evento), atracoes: atracoes.filter((a) => a.nome.trim()).map((a) => ({ nome: a.nome.trim() })) }}
+            usuario={usuario}
+            datasExtras={datasExtras}
+            onFechar={() => setAbrirMaterial(false)}
+            onMudou={(m) => {
+              setEmProducao(m.em_producao);
+              onMudou();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

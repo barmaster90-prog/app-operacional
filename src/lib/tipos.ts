@@ -61,13 +61,13 @@ export interface Evento {
   atracoes: Atracao[];
   entrada?: string;
   promocao?: string;
-  briefing?: string;
-  obs?: string;
   criado_por?: string;
   atualizado_em?: string;
+  /** Vem do Material (somente leitura aqui): a agência já colocou a arte em produção? */
+  em_producao?: boolean;
 }
 
-export type EventoNovo = Omit<Evento, "id">;
+export type EventoNovo = Omit<Evento, "id" | "em_producao">;
 
 export function eventoDaAba(e: Evento, aba: AbaId): boolean {
   return aba === "geral" || e.casas.some((c) => casa(c).aba === aba || casa(c).tambemEm?.includes(aba as Exclude<AbaId, "geral">));

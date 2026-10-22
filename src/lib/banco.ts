@@ -3,6 +3,7 @@ import type { Evento, EventoNovo } from "./tipos.ts";
 import type { DataEspecial } from "./feriados.ts";
 import type { DataISO } from "./datas.ts";
 import { EVENTOS_EXEMPLO } from "./exemplo.ts";
+import { materialVazio, type Anexo, type Material } from "./material.ts";
 
 export interface Usuario {
   id: string;
@@ -23,7 +24,14 @@ export interface Banco {
   datasEspeciais(de: DataISO, ate: DataISO): Promise<DataEspecial[]>;
   salvarDataEspecial(d: DataEspecial): Promise<DataEspecial>;
   apagarDataEspecial(id: string): Promise<void>;
+  material(eventoId: string): Promise<Material>;
+  salvarMaterial(m: Material): Promise<Material>;
+  enviarAnexo(eventoId: string, arquivo: File): Promise<Anexo>;
+  removerAnexo(anexo: Anexo): Promise<void>;
 }
+
+/** Limite por imagem no modo demonstração, que guarda tudo no navegador. */
+const LIMITE_ANEXO_DEMO = 1_500_000;
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const chave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -55,12 +63,19 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       return () => data.subscription.unsubscribe();
     },
     async eventos(de, ate) {
-      const { data, error } = await sb.from("eventos").select("*").gte("data", de).lte("data", ate).order("horario");
+      const { data, error } = await sb
+        .from("eventos")
+        .select("*, materiais(em_producao)")
+        .gte("data", de)
+        .lte("data", ate)
+        .order("horario");
       if (error) throw error;
-      return data as Evento[];
+      return (data as (Evento & { materiais: { em_producao: boolean } | { em_producao: boolean }[] | null })[]).map(
+        ({ materiais, ...e }) => ({ ...e, em_producao: Boolean(Array.isArray(materiais) ? materiais[0]?.em_producao : materiais?.em_producao) }),
+      );
     },
     async salvarEvento(e) {
-      const { id, ...resto } = e;
+      const { id, em_producao: _p, ...resto } = e as Evento;
       const q = id ? sb.from("eventos").update(resto).eq("id", id) : sb.from("eventos").insert(resto);
       const { data, error } = await q.select().single();
       if (error) throw error;
@@ -86,13 +101,45 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { error } = await sb.from("datas_especiais").delete().eq("id", id);
       if (error) throw error;
     },
+    async material(eventoId) {
+      const { data, error } = await sb.from("materiais").select("*").eq("evento_id", eventoId).maybeSingle();
+      if (error) throw error;
+      const m = (data as Material | null) ?? materialVazio(eventoId);
+      // O armazenamento é privado: gera links temporários para mostrar as imagens.
+      const anexos = await Promise.all(
+        m.anexos.map(async (a) => {
+          if (!a.caminho) return a;
+          const { data: u } = await sb.storage.from("materiais").createSignedUrl(a.caminho, 60 * 60);
+          return { ...a, url: u?.signedUrl ?? "" };
+        }),
+      );
+      return { ...m, anexos };
+    },
+    async salvarMaterial(m) {
+      const paraGravar = { ...m, anexos: m.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
+      const { data, error } = await sb.from("materiais").upsert(paraGravar).select().single();
+      if (error) throw error;
+      return { ...(data as Material), anexos: m.anexos };
+    },
+    async enviarAnexo(eventoId, arquivo) {
+      const caminho = `${eventoId}/${Date.now()}-${arquivo.name.replace(/[^\w.-]+/g, "_")}`;
+      const { error } = await sb.storage.from("materiais").upload(caminho, arquivo);
+      if (error) throw error;
+      const { data } = await sb.storage.from("materiais").createSignedUrl(caminho, 60 * 60);
+      return { nome: arquivo.name, caminho, url: data?.signedUrl ?? "" };
+    },
+    async removerAnexo(anexo) {
+      if (!anexo.caminho) return;
+      const { error } = await sb.storage.from("materiais").remove([anexo.caminho]);
+      if (error) throw error;
+    },
   };
 }
 
 /** Modo demonstração: guarda só neste navegador. Serve para ver o app antes de criar o Supabase. */
 function bancoDemo(): Banco {
   const CHAVE = "app-operacional-demo-v2";
-  type Estado = { usuario: Usuario | null; eventos: Evento[]; datas: DataEspecial[] };
+  type Estado = { usuario: Usuario | null; eventos: Evento[]; datas: DataEspecial[]; materiais?: Record<string, Material> };
   const ler = (): Estado => {
     try {
       const s = localStorage.getItem(CHAVE);
@@ -135,16 +182,20 @@ function bancoDemo(): Banco {
       return () => ouvintes.delete(cb);
     },
     async eventos(de, ate) {
-      return estado.eventos.filter((e) => e.data >= de && e.data <= ate);
+      return estado.eventos
+        .filter((e) => e.data >= de && e.data <= ate)
+        .map((e) => ({ ...e, em_producao: Boolean(estado.materiais?.[e.id]?.em_producao) }));
     },
     async salvarEvento(e) {
-      const ev: Evento = { ...e, id: e.id ?? novoId(), criado_por: e.criado_por ?? estado.usuario?.nome, atualizado_em: new Date().toISOString() };
+      const { em_producao: _p, ...limpo } = e as Evento;
+      const ev: Evento = { ...limpo, id: e.id ?? novoId(), criado_por: e.criado_por ?? estado.usuario?.nome, atualizado_em: new Date().toISOString() };
       estado.eventos = [...estado.eventos.filter((x) => x.id !== ev.id), ev];
       gravar();
       return ev;
     },
     async apagarEvento(id) {
       estado.eventos = estado.eventos.filter((x) => x.id !== id);
+      if (estado.materiais) delete estado.materiais[id];
       gravar();
     },
     async datasEspeciais(de, ate) {
@@ -159,6 +210,29 @@ function bancoDemo(): Banco {
     async apagarDataEspecial(id) {
       estado.datas = estado.datas.filter((x) => x.id !== id);
       gravar();
+    },
+    async material(eventoId) {
+      return estado.materiais?.[eventoId] ?? materialVazio(eventoId);
+    },
+    async salvarMaterial(m) {
+      estado.materiais = { ...estado.materiais, [m.evento_id]: m };
+      gravar();
+      return m;
+    },
+    async enviarAnexo(_eventoId, arquivo) {
+      if (arquivo.size > LIMITE_ANEXO_DEMO) {
+        throw new Error("No modo demonstração cada imagem pode ter até 1,5 MB. Com o Supabase ligado esse limite some.");
+      }
+      const url = await new Promise<string>((ok, falha) => {
+        const leitor = new FileReader();
+        leitor.onload = () => ok(String(leitor.result));
+        leitor.onerror = () => falha(new Error("Não foi possível ler a imagem."));
+        leitor.readAsDataURL(arquivo);
+      });
+      return { nome: arquivo.name, url };
+    },
+    async removerAnexo() {
+      /* no modo demonstração a imagem some junto com o material */
     },
   };
 }

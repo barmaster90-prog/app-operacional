@@ -171,3 +171,52 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
   .linha-atracao input:nth-child(3) { grid-column: 1 / 3; }
   .modal { padding: 14px; }
 }
+
+/* Material e sinal de produção da arte */
+.sinal { display: inline-block; width: 8px; height: 8px; border-radius: 99px; flex: none; background: var(--perigo); }
+.sinal.sim { background: #3ccf7a; }
+.chip .sinal { margin-right: 5px; vertical-align: 1px; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
+.cartao .arte { display: inline-flex; align-items: center; gap: 5px; color: var(--texto-2); font-size: 12px; }
+
+.secoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.secao { display: grid !important; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; text-align: left; padding: 12px 14px !important; }
+.secao .sinal { grid-row: 1 / 3; }
+.secao small { grid-column: 2; color: var(--texto-2); }
+.secao:not(:has(.sinal)) strong, .secao:not(:has(.sinal)) small { grid-column: 1 / -1; }
+
+.modal.material { max-width: 760px; }
+.producao { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; border: 1px solid; }
+.producao.nao { border-color: #6b2a2d; background: #2a1719; }
+.producao.sim { border-color: #24603f; background: #14281d; }
+.producao .sinal { width: 12px; height: 12px; }
+.producao.nao .sinal { background: var(--perigo); }
+.producao.sim .sinal { background: #3ccf7a; }
+.producao div { display: grid; flex: 1; min-width: 0; }
+.producao small { color: var(--texto-2); }
+
+.do-evento { background: var(--superficie-2); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.do-evento h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-2); }
+.do-evento dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 8px; }
+.do-evento dt { color: var(--texto-2); font-size: 13px; }
+.do-evento dd { margin: 0; min-width: 0; }
+.do-evento > small { color: var(--texto-2); font-size: 12px; }
+
+.campos label.marca { display: flex; align-items: center; gap: 8px; color: var(--texto); align-self: end; padding-bottom: 10px; }
+.campos label.marca input { width: auto; }
+.anexos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.anexos figure { margin: 0; background: var(--fundo); border-radius: 8px; overflow: hidden; }
+.anexos img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; max-width: 100%; }
+.anexos figcaption { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding: 4px 6px; font-size: 11px; color: var(--texto-2); }
+.anexos figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botao-arquivo { display: inline-flex !important; justify-self: start; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; color: var(--texto) !important; cursor: pointer; }
+.botao-arquivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.botao-arquivo:focus-within { outline: 2px solid var(--destaque); }
+.briefing summary { cursor: pointer; color: var(--texto-2); font-size: 13px; }
+.briefing textarea { margin: 8px 0; font: 13px/1.5 ui-monospace, Consolas, monospace; }
+.ok { color: #3ccf7a; margin: 8px 0; }
+
+@media (max-width: 640px) {
+  .secoes { grid-template-columns: 1fr; }
+  .producao { flex-wrap: wrap; }
+  .chip .sinal { width: 5px; height: 5px; margin-right: 2px; box-shadow: none; }
+}
