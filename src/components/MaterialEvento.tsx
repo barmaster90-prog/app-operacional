@@ -94,12 +94,15 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     }
   }
 
+  const links = m.links_fotos.filter((l) => l.url.trim());
+  const mudarLink = (i: number, campo: "artista" | "url", v: string) =>
+    set("links_fotos", m.links_fotos.map((l, j) => (j === i ? { ...l, [campo]: v } : l)));
+
   const briefing = [
     `${topo.split(" - ")[0]} - ${casas} - ${evento.nome}`,
     "",
     m.descricao && `Descrição\n${m.descricao}`,
     m.ideia && `Ideia para a arte\n${m.ideia}`,
-    `Utilizar marca d'água: ${m.marca_dagua ? "sim" : "não"}`,
     "— — — — —",
     `Topo\n${topo}`,
     "",
@@ -108,7 +111,7 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     evento.entrada && `Entrada: ${evento.entrada}`,
     evento.promocao && `Promoção: ${evento.promocao}`,
     "— — — — —",
-    m.link_fotos && `Link com fotos / press kit\n${m.link_fotos}`,
+    links.length > 0 && `Links com fotos / press kit\n${links.map((l) => (l.artista ? `${l.artista}: ${l.url}` : l.url)).join("\n")}`,
     m.logotipo && `Logotipo\n${m.logotipo}`,
     m.referencia && `Referência para criação\n${m.referencia}`,
     m.importante && `Importante\n${m.importante}`,
@@ -172,10 +175,19 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             Ideia para a arte (fundo e elementos)
             <textarea id="mat-ideia" rows={4} value={m.ideia ?? ""} onChange={(e) => set("ideia", e.target.value)} placeholder="Ex.: 3 artistas em destaque, cenário de favela ao fundo, destacar o open bar" />
           </label>
-          <label>
-            Link com fotos / press kit dos artistas
-            <input id="mat-fotos" value={m.link_fotos ?? ""} onChange={(e) => set("link_fotos", e.target.value)} placeholder="https://drive.google.com/…" />
-          </label>
+          <fieldset className="inteiro">
+            <legend>Links com fotos / press kit dos artistas</legend>
+            {m.links_fotos.map((l, i) => (
+              <div className="link-artista" key={i}>
+                <input aria-label="Artista" value={l.artista ?? ""} onChange={(e) => mudarLink(i, "artista", e.target.value)} placeholder="Artista" />
+                <input aria-label="Link" value={l.url} onChange={(e) => mudarLink(i, "url", e.target.value)} placeholder="https://drive.google.com/…" />
+                <button type="button" className="link" onClick={() => set("links_fotos", m.links_fotos.filter((_, j) => j !== i))}>remover</button>
+              </div>
+            ))}
+            <button type="button" className="link" onClick={() => set("links_fotos", [...m.links_fotos, { artista: "", url: "" }])}>
+              + Adicionar link
+            </button>
+          </fieldset>
           <label>
             Logotipo
             <input id="mat-logo" value={m.logotipo ?? ""} onChange={(e) => set("logotipo", e.target.value)} placeholder="Link da logo da label" />
@@ -183,10 +195,6 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           <label>
             Referência para criação
             <input id="mat-ref" value={m.referencia ?? ""} onChange={(e) => set("referencia", e.target.value)} placeholder="Link ou descrição" />
-          </label>
-          <label className="marca">
-            <input id="mat-marca" type="checkbox" checked={m.marca_dagua} onChange={(e) => set("marca_dagua", e.target.checked)} />
-            Utilizar marca d'água
           </label>
           <label className="inteiro">
             Informação extra / importante
@@ -210,7 +218,7 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             )}
             <label className="botao-arquivo">
               <input id="mat-anexo" type="file" accept="image/*" multiple onChange={anexar} disabled={enviando} />
-              {enviando ? "Enviando…" : "+ Anexar imagens"}
+              {enviando ? "Enviando…" : "+ Anexar imagens (pode escolher várias)"}
             </label>
           </fieldset>
 

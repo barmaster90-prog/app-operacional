@@ -201,8 +201,8 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .do-evento dd { margin: 0; min-width: 0; }
 .do-evento > small { color: var(--texto-2); font-size: 12px; }
 
-.campos label.marca { display: flex; align-items: center; gap: 8px; color: var(--texto); align-self: end; padding-bottom: 10px; }
-.campos label.marca input { width: auto; }
+.link-artista { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+@media (max-width: 640px) { .link-artista { grid-template-columns: minmax(0, 1fr) auto; } .link-artista input[aria-label="Link"] { grid-column: 1 / -1; grid-row: 2; } }
 .anexos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .anexos figure { margin: 0; background: var(--fundo); border-radius: 8px; overflow: hidden; }
 .anexos img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; max-width: 100%; }

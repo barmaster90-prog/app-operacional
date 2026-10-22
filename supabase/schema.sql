@@ -33,8 +33,7 @@ create table if not exists public.materiais (
   evento_id uuid primary key references public.eventos (id) on delete cascade,
   descricao text,
   ideia text,
-  marca_dagua boolean not null default false,
-  link_fotos text,
+  links_fotos jsonb not null default '[]'::jsonb, -- [{ artista, url }]
   logotipo text,
   referencia text,
   importante text,

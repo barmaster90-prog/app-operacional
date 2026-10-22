@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { topoDaArte } from "./material.ts";
+import { normalizarMaterial, topoDaArte } from "./material.ts";
 
 test("Topo com véspera de feriado", () => {
   assert.equal(topoDaArte("2026-11-01", "22:00"), "01/11 - Domingo - 22h - véspera de feriado");
@@ -19,4 +19,10 @@ test("Topo usa datas cadastradas pela equipe", () => {
     topoDaArte("2026-10-08", "23:00", [{ data: "2026-10-09", nome: "Feriado local", tipo: "feriado" }]),
     "08/10 - Quinta - 23h - véspera de feriado",
   );
+});
+
+test("material antigo com um link só vira lista", () => {
+  const m = normalizarMaterial({ evento_id: "x", link_fotos: "https://a", marca_dagua: true, anexos: [], em_producao: false });
+  assert.deepEqual(m.links_fotos, [{ url: "https://a" }]);
+  assert.equal("marca_dagua" in m, false);
 });

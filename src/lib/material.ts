@@ -8,13 +8,18 @@ export interface Anexo {
   caminho?: string;
 }
 
+export interface LinkArtista {
+  artista?: string;
+  url: string;
+}
+
 /** O que a agência precisa para construir a arte, além do que já está na ficha do evento. */
 export interface Material {
   evento_id: string;
   descricao?: string;
   ideia?: string;
-  marca_dagua: boolean;
-  link_fotos?: string;
+  /** Um link por artista (press kit, fotos). */
+  links_fotos: LinkArtista[];
   logotipo?: string;
   referencia?: string;
   importante?: string;
@@ -25,7 +30,17 @@ export interface Material {
 }
 
 export function materialVazio(eventoId: string): Material {
-  return { evento_id: eventoId, marca_dagua: false, anexos: [], em_producao: false };
+  return { evento_id: eventoId, links_fotos: [], anexos: [], em_producao: false };
+}
+
+/** Aceita materiais gravados antes da lista de links (campo único link_fotos). */
+export function normalizarMaterial(bruto: Record<string, unknown>): Material {
+  const { link_fotos, marca_dagua: _marca, ...resto } = bruto as Record<string, unknown> & { link_fotos?: unknown; marca_dagua?: unknown };
+  const m = { ...resto } as unknown as Material;
+  if (!Array.isArray(m.links_fotos)) m.links_fotos = [];
+  if (typeof link_fotos === "string" && link_fotos.trim() && m.links_fotos.length === 0) m.links_fotos = [{ url: link_fotos.trim() }];
+  if (!Array.isArray(m.anexos)) m.anexos = [];
+  return m;
 }
 
 const DIAS_SEMANA_LONGO = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];

@@ -3,7 +3,7 @@ import type { Evento, EventoNovo } from "./tipos.ts";
 import type { DataEspecial } from "./feriados.ts";
 import type { DataISO } from "./datas.ts";
 import { EVENTOS_EXEMPLO } from "./exemplo.ts";
-import { materialVazio, type Anexo, type Material } from "./material.ts";
+import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
 
 export interface Usuario {
   id: string;
@@ -104,7 +104,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
     async material(eventoId) {
       const { data, error } = await sb.from("materiais").select("*").eq("evento_id", eventoId).maybeSingle();
       if (error) throw error;
-      const m = (data as Material | null) ?? materialVazio(eventoId);
+      const m = data ? normalizarMaterial(data) : materialVazio(eventoId);
       // O armazenamento é privado: gera links temporários para mostrar as imagens.
       const anexos = await Promise.all(
         m.anexos.map(async (a) => {
@@ -119,7 +119,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const paraGravar = { ...m, anexos: m.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
       const { data, error } = await sb.from("materiais").upsert(paraGravar).select().single();
       if (error) throw error;
-      return { ...(data as Material), anexos: m.anexos };
+      return { ...normalizarMaterial(data), anexos: m.anexos };
     },
     async enviarAnexo(eventoId, arquivo) {
       const caminho = `${eventoId}/${Date.now()}-${arquivo.name.replace(/[^\w.-]+/g, "_")}`;
@@ -212,7 +212,8 @@ function bancoDemo(): Banco {
       gravar();
     },
     async material(eventoId) {
-      return estado.materiais?.[eventoId] ?? materialVazio(eventoId);
+      const m = estado.materiais?.[eventoId];
+      return m ? normalizarMaterial(m as unknown as Record<string, unknown>) : materialVazio(eventoId);
     },
     async salvarMaterial(m) {
       estado.materiais = { ...estado.materiais, [m.evento_id]: m };
