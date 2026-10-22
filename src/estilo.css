@@ -208,6 +208,7 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .anexos img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; max-width: 100%; }
 .anexos figcaption { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding: 4px 6px; font-size: 11px; color: var(--texto-2); }
 .anexos figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anexos figcaption .acoes-anexo { display: flex; gap: 8px; flex-shrink: 0; overflow: visible; }
 .botao-arquivo { display: inline-flex !important; justify-self: start; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; color: var(--texto) !important; cursor: pointer; }
 .botao-arquivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .botao-arquivo:focus-within { outline: 2px solid var(--destaque); }

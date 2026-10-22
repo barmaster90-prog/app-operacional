@@ -3,6 +3,7 @@ import { banco, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { topoDaArte, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
+import { baixarArquivo } from "../lib/baixar.ts";
 
 interface Props {
   evento: Evento;
@@ -120,6 +121,16 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     .join("\n")
     .replace(/\n{3,}/g, "\n\n");
 
+  async function baixar(url: string, nome: string) {
+    setErro("");
+    try {
+      await baixarArquivo(url, nome);
+    } catch (er) {
+      const codigo = (er as { code?: string }).code;
+      if (codigo !== "declined") setErro("Não foi possível baixar a imagem. Abra a imagem e salve por lá.");
+    }
+  }
+
   async function copiar() {
     try {
       await navigator.clipboard.writeText(briefing);
@@ -210,7 +221,10 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
                     <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.nome} /></a>
                     <figcaption>
                       <span>{a.nome}</span>
-                      <button type="button" className="link" onClick={() => removerAnexo(i)}>remover</button>
+                      <span className="acoes-anexo">
+                        <button type="button" className="link" onClick={() => baixar(a.url, a.nome)}>baixar</button>
+                        <button type="button" className="link" onClick={() => removerAnexo(i)}>remover</button>
+                      </span>
                     </figcaption>
                   </figure>
                 ))}
@@ -218,7 +232,7 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             )}
             <label className="botao-arquivo">
               <input id="mat-anexo" type="file" accept="image/*" multiple onChange={anexar} disabled={enviando} />
-              {enviando ? "Enviando…" : "+ Anexar imagens (pode escolher várias)"}
+              {enviando ? "Enviando…" : "+ Anexar imagens"}
             </label>
           </fieldset>
 
