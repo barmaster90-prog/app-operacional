@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { banco } from "../lib/banco.ts";
+import { banco, NOME_PAPEL, type Papel } from "../lib/banco.ts";
 
 export function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [papel, setPapel] = useState<Papel>("gestao");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -12,7 +13,7 @@ export function Login() {
     setErro("");
     setEnviando(true);
     try {
-      await banco.entrar(email.trim(), senha);
+      await banco.entrar(email.trim(), senha, papel);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível entrar.");
     } finally {
@@ -35,11 +36,19 @@ export function Login() {
             <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" required />
           </label>
         )}
+        {banco.demo && (
+          <label>
+            Entrar como
+            <select value={papel} onChange={(e) => setPapel(e.target.value as Papel)}>
+              {(Object.keys(NOME_PAPEL) as Papel[]).map((p) => <option key={p} value={p}>{NOME_PAPEL[p]}</option>)}
+            </select>
+          </label>
+        )}
         {erro && <p className="erro">{erro}</p>}
         <button className="primario" disabled={enviando}>{enviando ? "Entrando…" : "Entrar"}</button>
         {banco.demo && (
           <p className="aviso">
-            Modo demonstração: qualquer e-mail entra, e o que você lançar fica salvo só neste navegador.
+            Modo demonstração: qualquer e-mail entra, e o que você lançar fica salvo só neste navegador. No app de verdade o perfil vem do login de cada um.
           </p>
         )}
       </form>

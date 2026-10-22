@@ -5,17 +5,31 @@ import type { DataISO } from "./datas.ts";
 import { EVENTOS_EXEMPLO } from "./exemplo.ts";
 import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
 
+/** Gestão vê e edita tudo. Produção vê a agenda e o Material e marca "em produção", sem ver valores. */
+export type Papel = "gestao" | "producao";
+
+export const NOME_PAPEL: Record<Papel, string> = { gestao: "Gestão", producao: "Produção" };
+
 export interface Usuario {
   id: string;
   email: string;
   nome: string;
+  papel: Papel;
+}
+
+export const ehGestao = (u: Usuario) => u.papel === "gestao";
+
+/** Tira cachês e observações das atrações (o que a Produção não pode ver). */
+export function semValores(e: Evento): Evento {
+  return { ...e, atracoes: e.atracoes.map((a) => ({ nome: a.nome })) };
 }
 
 /** Tudo que o app precisa guardar. Duas implementações: Supabase (real) e demonstração (navegador). */
 export interface Banco {
   demo: boolean;
   usuarioAtual(): Promise<Usuario | null>;
-  entrar(email: string, senha: string): Promise<Usuario>;
+  /** No modo demonstração, `papel` escolhe o perfil simulado. */
+  entrar(email: string, senha: string, papel?: Papel): Promise<Usuario>;
   sair(): Promise<void>;
   aoMudarLogin(cb: (u: Usuario | null) => void): () => void;
   eventos(de: DataISO, ate: DataISO): Promise<Evento[]>;
@@ -26,6 +40,8 @@ export interface Banco {
   apagarDataEspecial(id: string): Promise<void>;
   material(eventoId: string): Promise<Material>;
   salvarMaterial(m: Material): Promise<Material>;
+  /** Única escrita liberada para a Produção. */
+  marcarProducao(eventoId: string, emProducao: boolean): Promise<Material>;
   enviarAnexo(eventoId: string, arquivo: File): Promise<Anexo>;
   removerAnexo(anexo: Anexo): Promise<void>;
 }
@@ -38,12 +54,16 @@ const chave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const banco: Banco = url && chave ? bancoSupabase(createClient(url, chave)) : bancoDemo();
 
-function paraUsuario(u: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Usuario {
-  const email = u.email ?? "";
-  return { id: u.id, email, nome: (u.user_metadata?.nome as string) || email.split("@")[0] };
-}
+type ContaSupabase = { id: string; email?: string };
 
 function bancoSupabase(sb: SupabaseClient): Banco {
+  // O perfil vem da tabela `perfis`; quem não tem linha lá entra como Produção (o menor acesso).
+  async function paraUsuario(u: ContaSupabase): Promise<Usuario> {
+    const email = u.email ?? "";
+    const { data } = await sb.from("perfis").select("nome, papel").eq("id", u.id).maybeSingle();
+    return { id: u.id, email, nome: data?.nome || email.split("@")[0], papel: data?.papel === "gestao" ? "gestao" : "producao" };
+  }
+
   return {
     demo: false,
     async usuarioAtual() {
@@ -59,27 +79,42 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       await sb.auth.signOut();
     },
     aoMudarLogin(cb) {
-      const { data } = sb.auth.onAuthStateChange((_ev, s) => cb(s?.user ? paraUsuario(s.user) : null));
+      const { data } = sb.auth.onAuthStateChange((_ev, s) => {
+        // Fora do callback: o Supabase não deixa consultar o banco dentro dele.
+        setTimeout(async () => cb(s?.user ? await paraUsuario(s.user) : null), 0);
+      });
       return () => data.subscription.unsubscribe();
     },
     async eventos(de, ate) {
       const { data, error } = await sb
         .from("eventos")
-        .select("*, materiais(em_producao)")
+        .select("*, materiais(em_producao), financeiro(atracoes)")
         .gte("data", de)
         .lte("data", ate)
         .order("horario");
       if (error) throw error;
-      return (data as (Evento & { materiais: { em_producao: boolean } | { em_producao: boolean }[] | null })[]).map(
-        ({ materiais, ...e }) => ({ ...e, em_producao: Boolean(Array.isArray(materiais) ? materiais[0]?.em_producao : materiais?.em_producao) }),
-      );
+      type Um<T> = T | T[] | null;
+      const primeiro = <T,>(x: Um<T>) => (Array.isArray(x) ? x[0] : x) ?? undefined;
+      type Linha = Evento & { materiais: Um<{ em_producao: boolean }>; financeiro: Um<{ atracoes: Evento["atracoes"] }> };
+      // `financeiro` só volta para a Gestão (regra no banco); para a Produção vem vazio.
+      return (data as Linha[]).map(({ materiais, financeiro, ...e }) => ({
+        ...e,
+        atracoes: primeiro(financeiro)?.atracoes ?? e.atracoes,
+        em_producao: Boolean(primeiro(materiais)?.em_producao),
+      }));
     },
     async salvarEvento(e) {
       const { id, em_producao: _p, ...resto } = e as Evento;
-      const q = id ? sb.from("eventos").update(resto).eq("id", id) : sb.from("eventos").insert(resto);
+      // Os nomes das atrações ficam no evento; cachês e observações vão para a tabela `financeiro`.
+      const publico = semValores(resto as Evento);
+      const linha = { ...resto, atracoes: publico.atracoes };
+      const q = id ? sb.from("eventos").update(linha).eq("id", id) : sb.from("eventos").insert(linha);
       const { data, error } = await q.select().single();
       if (error) throw error;
-      return data as Evento;
+      const salvo = data as Evento;
+      const fin = await sb.from("financeiro").upsert({ evento_id: salvo.id, atracoes: e.atracoes });
+      if (fin.error) throw fin.error;
+      return { ...salvo, atracoes: e.atracoes };
     },
     async apagarEvento(id) {
       const { error } = await sb.from("eventos").delete().eq("id", id);
@@ -121,6 +156,11 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       if (error) throw error;
       return { ...normalizarMaterial(data), anexos: m.anexos };
     },
+    async marcarProducao(eventoId, emProducao) {
+      const { error } = await sb.rpc("marcar_producao", { p_evento: eventoId, p_valor: emProducao });
+      if (error) throw error;
+      return this.material(eventoId);
+    },
     async enviarAnexo(eventoId, arquivo) {
       const caminho = `${eventoId}/${Date.now()}-${arquivo.name.replace(/[^\w.-]+/g, "_")}`;
       const { error } = await sb.storage.from("materiais").upload(caminho, arquivo);
@@ -150,6 +190,8 @@ function bancoDemo(): Banco {
     return { usuario: null, eventos: EVENTOS_EXEMPLO, datas: [] };
   };
   let estado = ler();
+  // Quem já tinha entrado antes dos perfis continua como Gestão.
+  if (estado.usuario && !estado.usuario.papel) estado.usuario.papel = "gestao";
   const ouvintes = new Set<(u: Usuario | null) => void>();
   const gravar = () => {
     try {
@@ -165,9 +207,9 @@ function bancoDemo(): Banco {
     async usuarioAtual() {
       return estado.usuario;
     },
-    async entrar(email) {
+    async entrar(email, _senha, papel = "gestao") {
       if (!email.includes("@")) throw new Error("Digite um e-mail válido.");
-      estado.usuario = { id: "demo", email, nome: email.split("@")[0] };
+      estado.usuario = { id: "demo", email, nome: email.split("@")[0], papel };
       gravar();
       ouvintes.forEach((cb) => cb(estado.usuario));
       return estado.usuario;
@@ -184,6 +226,7 @@ function bancoDemo(): Banco {
     async eventos(de, ate) {
       return estado.eventos
         .filter((e) => e.data >= de && e.data <= ate)
+        .map((e) => (estado.usuario?.papel === "gestao" ? e : semValores(e)))
         .map((e) => ({ ...e, em_producao: Boolean(estado.materiais?.[e.id]?.em_producao) }));
     },
     async salvarEvento(e) {
@@ -219,6 +262,14 @@ function bancoDemo(): Banco {
       estado.materiais = { ...estado.materiais, [m.evento_id]: m };
       gravar();
       return m;
+    },
+    async marcarProducao(eventoId, emProducao) {
+      const atual = await this.material(eventoId);
+      const quem = estado.usuario?.nome;
+      const m: Material = emProducao
+        ? { ...atual, em_producao: true, em_producao_por: quem, em_producao_em: new Date().toISOString() }
+        : { ...atual, em_producao: false, em_producao_por: undefined, em_producao_em: undefined };
+      return this.salvarMaterial(m);
     },
     async enviarAnexo(_eventoId, arquivo) {
       if (arquivo.size > LIMITE_ANEXO_DEMO) {

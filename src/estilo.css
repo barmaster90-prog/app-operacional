@@ -221,3 +221,12 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
   .producao { flex-wrap: wrap; }
   .chip .sinal { width: 5px; height: 5px; margin-right: 2px; box-shadow: none; }
 }
+
+/* Perfis */
+.selo.papel.gestao { background: #2c4a33; color: #b9f0c6; }
+.selo.papel.producao { background: #4a3a20; color: #f3d9a4; }
+.ficha { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0 0 16px; }
+.ficha dt { color: var(--texto-2); font-size: 13px; }
+.ficha dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.links-leitura { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.links-leitura a { color: var(--destaque, #9d8cff); }

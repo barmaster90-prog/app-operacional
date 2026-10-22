@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { banco, type Usuario } from "../lib/banco.ts";
+import { banco, ehGestao, NOME_PAPEL, type Usuario } from "../lib/banco.ts";
 import { ABAS, CASAS, casa, eventoDaAba, type AbaId, type Evento } from "../lib/tipos.ts";
 import { DIAS_SEMANA_CURTO, MESES, gradeDoMes, hojeISO, partes, type DataISO } from "../lib/datas.ts";
 import { datasFixasDoAno, type DataEspecial } from "../lib/feriados.ts";
 import { PainelDia } from "./PainelDia.tsx";
 import { FormEvento } from "./FormEvento.tsx";
+import { FichaEvento } from "./FichaEvento.tsx";
 
 const CHAVE_ABA = "app-operacional-aba";
 
@@ -48,7 +49,8 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao carregar a agenda.");
     }
-  }, [de, ate]);
+    // Recarrega ao trocar de perfil: o que cada um pode ver muda.
+  }, [de, ate, usuario.papel]);
 
   useEffect(() => {
     carregar();
@@ -104,6 +106,12 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
         </div>
         <div className="usuario">
           <span>{usuario.nome}</span>
+          <span className={`selo papel ${usuario.papel}`}>{NOME_PAPEL[usuario.papel]}</span>
+          {banco.demo && (
+            <button className="link" onClick={() => banco.entrar(usuario.email, "", ehGestao(usuario) ? "producao" : "gestao")}>
+              ver como {ehGestao(usuario) ? "Produção" : "Gestão"}
+            </button>
+          )}
           <button className="link" onClick={() => banco.sair()}>Sair</button>
         </div>
       </header>
@@ -179,6 +187,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             data={diaAberto}
             eventos={eventosPorDia.get(diaAberto) ?? []}
             especiais={datasPorDia.get(diaAberto) ?? []}
+            podeEditar={ehGestao(usuario)}
             onFechar={() => setDiaAberto(null)}
             onNovo={() => novoEvento(diaAberto)}
             onEditar={(e) => setEditando(e)}
@@ -187,7 +196,17 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
         )}
       </div>
 
-      {editando && (
+      {editando && !ehGestao(usuario) && editando.id && (
+        <FichaEvento
+          evento={editando as Evento}
+          usuario={usuario}
+          datasExtras={datasCadastradas}
+          onMudou={carregar}
+          onFechar={() => setEditando(null)}
+        />
+      )}
+
+      {editando && ehGestao(usuario) && (
         <FormEvento
           inicial={editando}
           usuario={usuario}

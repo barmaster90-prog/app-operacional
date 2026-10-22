@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { banco, type Usuario } from "../lib/banco.ts";
+import { banco, ehGestao, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { topoDaArte, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
@@ -26,6 +26,8 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   const [salvando, setSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const textoRef = useRef<HTMLTextAreaElement>(null);
+  // Produção só lê, baixa e marca "em produção"; quem preenche é a Gestão.
+  const leitura = !ehGestao(usuario);
 
   useEffect(() => {
     banco.material(evento.id).then(setM).catch((e) => setErro(e instanceof Error ? e.message : "Erro ao abrir o material."));
@@ -59,12 +61,23 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     }
   }
 
-  function alternarProducao() {
+  async function alternarProducao() {
     if (!m) return;
-    const novo: Material = m.em_producao
-      ? { ...m, em_producao: false, em_producao_por: undefined, em_producao_em: undefined }
-      : { ...m, em_producao: true, em_producao_por: usuario.nome, em_producao_em: new Date().toISOString() };
-    gravar(novo, novo.em_producao ? "Marcado como em produção." : "Voltou para em aberto.");
+    const valor = !m.em_producao;
+    setSalvando(true);
+    setErro("");
+    try {
+      const salvo = await banco.marcarProducao(evento.id, valor);
+      // Guarda o que a Gestão ainda não salvou nos outros campos.
+      const novo = { ...m, em_producao: salvo.em_producao, em_producao_por: salvo.em_producao_por, em_producao_em: salvo.em_producao_em };
+      setM(novo);
+      setAviso(valor ? "Marcado como em produção." : "Voltou para em aberto.");
+      onMudou(novo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível marcar.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function anexar(e: ChangeEvent<HTMLInputElement>) {
@@ -156,7 +169,7 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             <small>
               {m.em_producao
                 ? `Marcado por ${m.em_producao_por ?? "—"} em ${quando(m.em_producao_em)}`
-                : "A agência ainda não colocou esta arte em produção."}
+                : "Esta arte ainda não foi colocada em produção."}
             </small>
           </div>
           <button type="button" className={m.em_producao ? "" : "primario"} onClick={alternarProducao} disabled={salvando}>
@@ -174,42 +187,55 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             {evento.entrada && (<><dt>Entrada</dt><dd>{evento.entrada}</dd></>)}
             {evento.promocao && (<><dt>Promoção</dt><dd>{evento.promocao}</dd></>)}
           </dl>
-          <small>Esses dados vêm da ficha do evento. Para mudar, edite a ficha.</small>
+          <small>Esses dados vêm da ficha do evento.{leitura ? "" : " Para mudar, edite a ficha."}</small>
         </section>
 
         <div className="campos">
           <label className="inteiro">
             Breve descrição do evento
-            <textarea id="mat-descricao" rows={3} value={m.descricao ?? ""} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex.: outra arte da label Original Funk Hits, anos 2010 a 2020" />
+            <textarea id="mat-descricao" readOnly={leitura} rows={3} value={m.descricao ?? ""} onChange={(e) => set("descricao", e.target.value)} placeholder={leitura ? "" : "Ex.: outra arte da label Original Funk Hits, anos 2010 a 2020"} />
           </label>
           <label className="inteiro">
             Ideia para a arte (fundo e elementos)
-            <textarea id="mat-ideia" rows={4} value={m.ideia ?? ""} onChange={(e) => set("ideia", e.target.value)} placeholder="Ex.: 3 artistas em destaque, cenário de favela ao fundo, destacar o open bar" />
+            <textarea id="mat-ideia" readOnly={leitura} rows={4} value={m.ideia ?? ""} onChange={(e) => set("ideia", e.target.value)} placeholder={leitura ? "" : "Ex.: 3 artistas em destaque, cenário de favela ao fundo, destacar o open bar"} />
           </label>
           <fieldset className="inteiro">
             <legend>Links com fotos / press kit dos artistas</legend>
-            {m.links_fotos.map((l, i) => (
+            {leitura ? (
+              links.length ? (
+                <ul className="links-leitura">
+                  {links.map((l, i) => (
+                    <li key={i}>
+                      {l.artista && <strong>{l.artista}: </strong>}
+                      <a href={l.url} target="_blank" rel="noreferrer">{l.url}</a>
+                    </li>
+                  ))}
+                </ul>
+              ) : <small>Nenhum link.</small>
+            ) : m.links_fotos.map((l, i) => (
               <div className="link-artista" key={i}>
                 <input aria-label="Artista" value={l.artista ?? ""} onChange={(e) => mudarLink(i, "artista", e.target.value)} placeholder="Artista" />
                 <input aria-label="Link" value={l.url} onChange={(e) => mudarLink(i, "url", e.target.value)} placeholder="https://drive.google.com/…" />
                 <button type="button" className="link" onClick={() => set("links_fotos", m.links_fotos.filter((_, j) => j !== i))}>remover</button>
               </div>
             ))}
-            <button type="button" className="link" onClick={() => set("links_fotos", [...m.links_fotos, { artista: "", url: "" }])}>
-              + Adicionar link
-            </button>
+            {!leitura && (
+              <button type="button" className="link" onClick={() => set("links_fotos", [...m.links_fotos, { artista: "", url: "" }])}>
+                + Adicionar link
+              </button>
+            )}
           </fieldset>
           <label>
             Logotipo
-            <input id="mat-logo" value={m.logotipo ?? ""} onChange={(e) => set("logotipo", e.target.value)} placeholder="Link da logo da label" />
+            <input id="mat-logo" readOnly={leitura} value={m.logotipo ?? ""} onChange={(e) => set("logotipo", e.target.value)} placeholder={leitura ? "" : "Link da logo da label"} />
           </label>
           <label>
             Referência para criação
-            <input id="mat-ref" value={m.referencia ?? ""} onChange={(e) => set("referencia", e.target.value)} placeholder="Link ou descrição" />
+            <input id="mat-ref" readOnly={leitura} value={m.referencia ?? ""} onChange={(e) => set("referencia", e.target.value)} placeholder={leitura ? "" : "Link ou descrição"} />
           </label>
           <label className="inteiro">
             Informação extra / importante
-            <textarea id="mat-importante" rows={2} value={m.importante ?? ""} onChange={(e) => set("importante", e.target.value)} />
+            <textarea id="mat-importante" readOnly={leitura} rows={2} value={m.importante ?? ""} onChange={(e) => set("importante", e.target.value)} />
           </label>
 
           <fieldset className="inteiro">
@@ -223,17 +249,18 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
                       <span>{a.nome}</span>
                       <span className="acoes-anexo">
                         <button type="button" className="link" onClick={() => baixar(a.url, a.nome)}>baixar</button>
-                        <button type="button" className="link" onClick={() => removerAnexo(i)}>remover</button>
+                        {!leitura && <button type="button" className="link" onClick={() => removerAnexo(i)}>remover</button>}
                       </span>
                     </figcaption>
                   </figure>
                 ))}
               </div>
             )}
-            <label className="botao-arquivo">
+            {leitura && m.anexos.length === 0 && <small>Nenhuma imagem.</small>}
+            {!leitura && <label className="botao-arquivo">
               <input id="mat-anexo" type="file" accept="image/*" multiple onChange={anexar} disabled={enviando} />
               {enviando ? "Enviando…" : "+ Anexar imagens"}
-            </label>
+            </label>}
           </fieldset>
 
           <details className="inteiro briefing">
@@ -249,9 +276,11 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
         <div className="modal-rodape">
           <span className="espaco" />
           <button type="button" onClick={onFechar}>Fechar</button>
-          <button type="button" className="primario" disabled={salvando} onClick={() => gravar(m, "Material salvo.")}>
-            {salvando ? "Salvando…" : "Salvar material"}
-          </button>
+          {!leitura && (
+            <button type="button" className="primario" disabled={salvando} onClick={() => gravar(m, "Material salvo.")}>
+              {salvando ? "Salvando…" : "Salvar material"}
+            </button>
+          )}
         </div>
       </div>
     </div>

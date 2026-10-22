@@ -15,13 +15,14 @@ interface Props {
   data: DataISO;
   eventos: Evento[];
   especiais: DataEspecial[];
+  podeEditar: boolean;
   onFechar(): void;
   onNovo(): void;
   onEditar(e: Evento): void;
   onDatasMudaram(): void;
 }
 
-export function PainelDia({ data, eventos, especiais, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
+export function PainelDia({ data, eventos, especiais, podeEditar, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
   const [novaData, setNovaData] = useState<{ nome: string; tipo: TipoData } | null>(null);
   const [apagando, setApagando] = useState<string | null>(null);
 
@@ -53,13 +54,13 @@ export function PainelDia({ data, eventos, especiais, onFechar, onNovo, onEditar
             <li key={`${d.nome}-${d.id ?? ""}`} className={d.tipo}>
               <span>{d.nome}</span>
               <small>{NOME_TIPO[d.tipo]}</small>
-              {d.editavel && <button className="link" onClick={() => apagarData(d)}>{apagando === d.id ? "confirmar" : "apagar"}</button>}
+              {d.editavel && podeEditar && <button className="link" onClick={() => apagarData(d)}>{apagando === d.id ? "confirmar" : "apagar"}</button>}
             </li>
           ))}
         </ul>
       )}
 
-      <button className="primario largo" onClick={onNovo}>+ Adicionar evento</button>
+      {podeEditar && <button className="primario largo" onClick={onNovo}>+ Adicionar evento</button>}
 
       {eventos.length === 0 ? (
         <p className="vazio">Nenhum evento nesta data.</p>
@@ -90,7 +91,7 @@ export function PainelDia({ data, eventos, especiais, onFechar, onNovo, onEditar
         </ul>
       )}
 
-      {novaData ? (
+      {!podeEditar ? null : novaData ? (
         <form className="nova-data" onSubmit={salvarData}>
           <input
             autoFocus
