@@ -13,6 +13,18 @@ export interface LinkArtista {
   url: string;
 }
 
+/** Versão animada da arte (vai junto para a agência). */
+export interface Animado {
+  formato?: string;
+  duracao?: string;
+  trilha?: string;
+  /** Links da trilha, do YouTube, de referência. */
+  links: string[];
+  obs?: string;
+}
+
+export const FORMATOS_ANIMADO = ["Reels / Story (9:16)", "Feed (4:5)", "Quadrado (1:1)", "Horizontal (16:9)"];
+
 /** O que a agência precisa para construir a arte, além do que já está na ficha do evento. */
 export interface Material {
   evento_id: string;
@@ -24,13 +36,14 @@ export interface Material {
   referencia?: string;
   importante?: string;
   anexos: Anexo[];
+  animado: Animado;
   em_producao: boolean;
   em_producao_por?: string;
   em_producao_em?: string;
 }
 
 export function materialVazio(eventoId: string): Material {
-  return { evento_id: eventoId, links_fotos: [], anexos: [], em_producao: false };
+  return { evento_id: eventoId, links_fotos: [], anexos: [], animado: { links: [] }, em_producao: false };
 }
 
 /** Aceita materiais gravados antes da lista de links (campo único link_fotos). */
@@ -40,6 +53,8 @@ export function normalizarMaterial(bruto: Record<string, unknown>): Material {
   if (!Array.isArray(m.links_fotos)) m.links_fotos = [];
   if (typeof link_fotos === "string" && link_fotos.trim() && m.links_fotos.length === 0) m.links_fotos = [{ url: link_fotos.trim() }];
   if (!Array.isArray(m.anexos)) m.anexos = [];
+  if (!m.animado || typeof m.animado !== "object") m.animado = { links: [] };
+  if (!Array.isArray(m.animado.links)) m.animado = { ...m.animado, links: [] };
   return m;
 }
 

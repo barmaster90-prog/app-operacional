@@ -70,10 +70,13 @@ create table if not exists public.materiais (
   referencia text,
   importante text,
   anexos jsonb not null default '[]'::jsonb,
+  animado jsonb not null default '{"links": []}'::jsonb, -- { formato, duracao, trilha, links, obs }
   em_producao boolean not null default false,
   em_producao_por text,
   em_producao_em timestamptz
 );
+
+alter table public.materiais add column if not exists animado jsonb not null default '{"links": []}'::jsonb;
 
 -- Divulgação do evento: legenda, postagens, impulsionamento e audiovisual.
 create table if not exists public.divulgacoes (

@@ -255,3 +255,8 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
   .postagem { grid-template-columns: 1fr 1fr; }
   .postagem .check { grid-column: 1 / -1; }
 }
+
+/* Animado */
+.animado .campos { margin: 0; }
+.rotulo { display: block; font-size: 13px; color: var(--texto-2); margin-bottom: 6px; }
+.link-simples { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { banco, ehGestao, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
-import { topoDaArte, type Material } from "../lib/material.ts";
+import { FORMATOS_ANIMADO, topoDaArte, type Animado, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { baixarArquivo } from "../lib/baixar.ts";
 
@@ -109,6 +109,10 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   }
 
   const links = m.links_fotos.filter((l) => l.url.trim());
+  const an = m.animado;
+  const setAnimado = (mudanca: Partial<Animado>) => set("animado", { ...an, ...mudanca });
+  const linksAnimado = an.links.filter((l) => l.trim());
+  const temAnimado = Boolean(an.formato || an.duracao || an.trilha || linksAnimado.length || an.obs);
   const mudarLink = (i: number, campo: "artista" | "url", v: string) =>
     set("links_fotos", m.links_fotos.map((l, j) => (j === i ? { ...l, [campo]: v } : l)));
 
@@ -129,8 +133,22 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     m.logotipo && `Logotipo\n${m.logotipo}`,
     m.referencia && `Referência para criação\n${m.referencia}`,
     m.importante && `Importante\n${m.importante}`,
+    temAnimado && "— — — — —",
+    temAnimado &&
+      [
+        "Animado",
+        an.formato && `Formato: ${an.formato}`,
+        an.duracao && `Duração: ${an.duracao}`,
+        an.trilha && `Trilha sonora: ${an.trilha}`,
+        linksAnimado.length > 0 && `Links:\n${linksAnimado.join("\n")}`,
+        an.obs && `Obs.: ${an.obs}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   ]
     .filter((x): x is string => typeof x === "string")
+    // Sem nada entre dois separadores, fica um só.
+    .filter((x, i, todos) => !(x === "— — — — —" && todos[i + 1] === "— — — — —"))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n");
 
@@ -261,6 +279,51 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
               <input id="mat-anexo" type="file" accept="image/*" multiple onChange={anexar} disabled={enviando} />
               {enviando ? "Enviando…" : "+ Anexar imagens"}
             </label>}
+          </fieldset>
+
+          <fieldset className="inteiro animado">
+            <legend>Animado</legend>
+            <div className="campos">
+              <label>
+                Formato
+                <input id="mat-anim-formato" list="formatos-animado" readOnly={leitura} value={an.formato ?? ""} onChange={(e) => setAnimado({ formato: e.target.value })} placeholder={leitura ? "" : "Escolha ou escreva"} />
+                <datalist id="formatos-animado">
+                  {FORMATOS_ANIMADO.map((f) => <option key={f} value={f} />)}
+                </datalist>
+              </label>
+              <label>
+                Duração
+                <input id="mat-anim-duracao" readOnly={leitura} value={an.duracao ?? ""} onChange={(e) => setAnimado({ duracao: e.target.value })} placeholder={leitura ? "" : "Ex.: 15 segundos"} />
+              </label>
+              <label className="inteiro">
+                Trilha sonora
+                <input id="mat-anim-trilha" readOnly={leitura} value={an.trilha ?? ""} onChange={(e) => setAnimado({ trilha: e.target.value })} placeholder={leitura ? "" : "Música, artista ou estilo"} />
+              </label>
+              <div className="inteiro">
+                <span className="rotulo">Links (trilha, YouTube, referência)</span>
+                {leitura ? (
+                  linksAnimado.length ? (
+                    <ul className="links-leitura">
+                      {linksAnimado.map((l, i) => <li key={i}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}
+                    </ul>
+                  ) : <small>Nenhum link.</small>
+                ) : (
+                  <>
+                    {an.links.map((l, i) => (
+                      <div className="link-simples" key={i}>
+                        <input aria-label="Link do animado" value={l} onChange={(e) => setAnimado({ links: an.links.map((x, j) => (j === i ? e.target.value : x)) })} placeholder="https://youtube.com/…" />
+                        <button type="button" className="link" onClick={() => setAnimado({ links: an.links.filter((_, j) => j !== i) })}>remover</button>
+                      </div>
+                    ))}
+                    <button type="button" className="link" onClick={() => setAnimado({ links: [...an.links, ""] })}>+ Adicionar link</button>
+                  </>
+                )}
+              </div>
+              <label className="inteiro">
+                Observação
+                <textarea id="mat-anim-obs" rows={2} readOnly={leitura} value={an.obs ?? ""} onChange={(e) => setAnimado({ obs: e.target.value })} />
+              </label>
+            </div>
           </fieldset>
 
           <details className="inteiro briefing">
