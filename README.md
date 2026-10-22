@@ -20,7 +20,7 @@ npm run dev
 ## Perfis
 
 - **Gestão**: vê e edita tudo, inclusive cachês e valores.
-- **Produção**: vê a agenda, os eventos, as atrações e o Material, baixa as imagens, copia o briefing e marca "em produção". Programa posts e vídeos na Divulgação. Não vê valores (cachês e impulsionamento) e não edita eventos nem o Material. A regra fica no banco, não só na tela.
+- **Produção**: vê a agenda, os eventos, as atrações e o Material, baixa as imagens, copia o briefing e marca "em produção". Programa posts e vídeos na Divulgação. Vê os Pedidos de arte e marca "em produção". Não vê valores (cachês e impulsionamento) e não edita eventos nem o Material. A regra fica no banco, não só na tela.
 
 Sem configurar o Supabase, o app abre em **modo demonstração**: qualquer e-mail entra e os dados ficam só naquele navegador.
 

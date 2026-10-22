@@ -1,7 +1,6 @@
 import { banco, type Usuario } from "./banco.ts";
 import { novasMencoes, type Membro } from "./equipe.ts";
 import { trecho, type AvisoNovo, type Destino } from "./avisos.ts";
-import type { Evento } from "./tipos.ts";
 
 /** Um texto que pode ter menções: o que estava salvo e o que vai ser salvo. */
 export interface TextoMudado {
@@ -10,10 +9,17 @@ export interface TextoMudado {
   depois?: string;
 }
 
-const base = (evento: Pick<Evento, "id" | "data">, autor: Usuario, abrir: Destino) => ({
+/** Do que é o aviso: um evento ou um pedido de arte. */
+export interface Alvo {
+  id: string;
+  nome: string;
+  data?: string;
+  pedido?: boolean;
+}
+
+const base = (alvo: Alvo, autor: Usuario, abrir: Destino) => ({
   de_nome: autor.nome,
-  evento_id: evento.id,
-  evento_data: evento.data,
+  ...(alvo.pedido ? { pedido_id: alvo.id } : { evento_id: alvo.id, evento_data: alvo.data }),
   abrir,
 });
 
@@ -22,7 +28,7 @@ export function avisosDeMencao(
   textos: TextoMudado[],
   equipe: Membro[],
   autor: Usuario,
-  evento: Pick<Evento, "id" | "data" | "nome">,
+  evento: Alvo,
   abrir: Destino,
 ): AvisoNovo[] {
   const lista: AvisoNovo[] = [];
@@ -48,7 +54,7 @@ export function avisoDeTarefa(
   paraId: string | undefined,
   antesId: string | undefined,
   autor: Usuario,
-  evento: Pick<Evento, "id" | "data" | "nome">,
+  evento: Alvo,
   abrir: Destino,
   oque: string,
   prazo?: string,

@@ -32,7 +32,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
   const tarefas = useMemo(() => {
     if (!dados) return [];
     return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes).filter(
-      (t) => t.tipo !== "arte" && t.prazo && t.prazo >= inicio && t.prazo <= fim && (!soMeu || t.responsavel_id === usuario.id),
+      (t) => (t.tipo === "post" || t.tipo === "video") && t.prazo && t.prazo >= inicio && t.prazo <= fim && (!soMeu || t.responsavel_id === usuario.id),
     );
   }, [dados, inicio, fim, soMeu, usuario.id]);
 
@@ -58,6 +58,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
         <span><i className="sinal-tarefa semana" />a fazer</span>
         <span><i className="sinal-tarefa atrasada" />atrasado</span>
         <span><i className="tracejado" />evento da noite</span>
+        <span><i className="tracejado roxo" />arte para usar no dia</span>
       </div>
 
       {!dados ? (
@@ -67,6 +68,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
           {dias.map((d) => {
             const eventos = dados.eventos.filter((e) => e.data === d);
             const doDia = tarefas.filter((t) => t.prazo === d);
+            const artes = dados.pedidos.filter((p) => p.uso === d && !p.entregue);
             return (
               <div key={d} className={`dia-semana ${d === hoje ? "hoje" : ""}`}>
                 <div className="cab-dia">
@@ -81,6 +83,11 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
                     onClick={() => onAbrir(e.id, e.data, "divulgacao")}
                   >
                     {casa(e.casas[0]).curto} · {e.nome}
+                  </button>
+                ))}
+                {artes.map((p) => (
+                  <button type="button" key={p.id} className="evento-noite pedido-dia" onClick={() => onAbrir(p.id, "", "pedido")}>
+                    Arte · {p.titulo}
                   </button>
                 ))}
                 {doDia.map((t) => {
@@ -104,7 +111,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
                     </button>
                   );
                 })}
-                {eventos.length === 0 && doDia.length === 0 && <span className="nada">—</span>}
+                {eventos.length === 0 && artes.length === 0 && doDia.length === 0 && <span className="nada">—</span>}
               </div>
             );
           })}

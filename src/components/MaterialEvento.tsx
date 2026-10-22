@@ -1,22 +1,34 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { banco, ehGestao, type Usuario } from "../lib/banco.ts";
-import { casa, type Evento } from "../lib/tipos.ts";
+import { CASAS, casa, type CasaId, type Evento } from "../lib/tipos.ts";
 import { FORMATOS_ANIMADO, topoDaArte, type Animado, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { baixarArquivo } from "../lib/baixar.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
-import { avisoDeTarefa, avisosDeMencao, enviarAvisos } from "../lib/notificar.ts";
+import { PECAS, materialDoPedido, type Pedido } from "../lib/pedidos.ts";
+import { avisoDeTarefa, avisosDeMencao, enviarAvisos, type Alvo } from "../lib/notificar.ts";
 import type { AvisoNovo } from "../lib/avisos.ts";
 import { CampoTexto, TextoComMencoes } from "./CampoTexto.tsx";
 import { nomeDe, useEquipe } from "./Equipe.tsx";
 
 interface Props {
-  evento: Evento;
+  /** O briefing é de um evento… */
+  evento?: Evento;
+  /** …ou de um pedido de arte sem evento (novo quando o id está vazio). */
+  pedido?: Pedido;
   usuario: Usuario;
   datasExtras: DataEspecial[];
   onFechar(): void;
-  onMudou(m: Material): void;
+  onMudou?(m: Material): void;
+  onPedido?(p: Pedido): void;
+  onPedidoApagado?(id: string): void;
 }
+
+type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "entregue" | "criado_por" | "criado_em">;
+
+const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "");
+
+export const nomeDasCasas = (casas: CasaId[]) => (casas.length === 0 ? "Todas as casas" : casas.map((c) => casa(c).nome).join(" + "));
 
 function quando(iso?: string): string {
   if (!iso) return "";
@@ -24,7 +36,7 @@ function quando(iso?: string): string {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou }: Props) {
+export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar, onMudou, onPedido, onPedidoApagado }: Props) {
   const [m, setM] = useState<Material | null>(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -36,8 +48,28 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   const equipe = useEquipe();
   // Produção só lê, baixa e marca "em produção"; quem preenche é a Gestão.
   const leitura = !ehGestao(usuario);
+  const [pedidoId, setPedidoId] = useState(pedido?.id ?? "");
+  const [cab, setCab] = useState<Cabecalho>(() => ({
+    titulo: pedido?.titulo ?? "",
+    casas: pedido?.casas ?? [],
+    pecas: pedido?.pecas ?? [],
+    uso: pedido?.uso,
+    entregue: pedido?.entregue ?? false,
+    criado_por: pedido?.criado_por,
+    criado_em: pedido?.criado_em,
+  }));
+  const [apagar, setApagar] = useState(false);
+  const alvo: Alvo = evento ? { id: evento.id, nome: evento.nome, data: evento.data } : { id: pedidoId, nome: cab.titulo || "Pedido de arte", pedido: true };
+  const destino = evento ? "material" : "pedido";
 
   useEffect(() => {
+    if (pedido) {
+      const x = materialDoPedido(pedido);
+      salvoRef.current = pedido.id ? x : null;
+      setM(x);
+      return;
+    }
+    if (!evento) return;
     banco
       .material(evento.id)
       .then((x) => {
@@ -45,7 +77,8 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
         setM(x);
       })
       .catch((e) => setErro(e instanceof Error ? e.message : "Erro ao abrir o material."));
-  }, [evento.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evento?.id, pedido?.id]);
 
   if (!m) {
     return (
@@ -56,20 +89,32 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   }
 
   const set = <K extends keyof Material>(k: K, v: Material[K]) => setM((x) => (x ? { ...x, [k]: v } : x));
-  const topo = topoDaArte(evento.data, evento.horario, datasExtras);
-  const casas = evento.casas.map((c) => casa(c).nome).join(" + ") + (evento.local ? ` · ${evento.local}` : "");
-  const atracoes = evento.atracoes.map((a) => a.nome).join(" - ");
+  const topo = evento ? topoDaArte(evento.data, evento.horario, datasExtras) : "";
+  const casas = evento ? evento.casas.map((c) => casa(c).nome).join(" + ") + (evento.local ? ` · ${evento.local}` : "") : nomeDasCasas(cab.casas);
+  const atracoes = evento ? evento.atracoes.map((a) => a.nome).join(" - ") : "";
+
+  /** Grava o Material do evento ou o pedido inteiro (cabeçalho + briefing). */
+  async function gravarNoBanco(novo: Material): Promise<Material> {
+    if (evento) return banco.salvarMaterial(novo);
+    if (!cab.titulo.trim()) throw new Error("Diga o que é o pedido (ex.: Dia das Mulheres).");
+    const { evento_id: _id, ...briefing } = novo;
+    const p = await banco.salvarPedido({ ...briefing, ...cab, titulo: cab.titulo.trim(), id: pedidoId });
+    setPedidoId(p.id);
+    onPedido?.(p);
+    return materialDoPedido(p);
+  }
 
   async function gravar(novo: Material, msg: string) {
     setSalvando(true);
     setErro("");
     try {
-      const salvo = await banco.salvarMaterial(novo);
+      const salvo = await gravarNoBanco(novo);
       const antes = salvoRef.current;
       salvoRef.current = salvo;
       setM(salvo);
       setAviso(msg);
-      onMudou(salvo);
+      onMudou?.(salvo);
+      const alvoSalvo: Alvo = evento ? alvo : { ...alvo, id: salvo.evento_id };
       await enviarAvisos([
         ...avisosDeMencao(
           [
@@ -82,15 +127,53 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           ],
           equipe,
           usuario,
-          evento,
-          "material",
+          alvoSalvo,
+          destino,
         ),
-        ...avisoDeTarefa(salvo.responsavel_id, antes?.responsavel_id, usuario, evento, "material", "Levar a arte para a produção", salvo.prazo),
+        ...avisoDeTarefa(
+          salvo.responsavel_id,
+          antes?.responsavel_id,
+          usuario,
+          alvoSalvo,
+          destino,
+          evento ? "Levar a arte para a produção" : `Pedido de arte${cab.pecas.length ? ` (${cab.pecas.join(", ")})` : ""}`,
+          salvo.prazo,
+        ),
       ]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  /** Muda só a situação do pedido (entregue), guardando o resto como está. */
+  async function gravarCab(mudanca: Partial<Cabecalho>, msg: string) {
+    if (!m) return;
+    const novoCab = { ...cab, ...mudanca };
+    setCab(novoCab);
+    setSalvando(true);
+    setErro("");
+    try {
+      const { evento_id: _id, ...briefing } = salvoRef.current ?? m;
+      const p = await banco.salvarPedido({ ...briefing, ...novoCab, id: pedidoId });
+      onPedido?.(p);
+      setAviso(msg);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function apagarPedido() {
+    if (!apagar) return setApagar(true);
+    try {
+      await banco.apagarPedido(pedidoId);
+      onPedidoApagado?.(pedidoId);
+      onFechar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível apagar.");
     }
   }
 
@@ -100,12 +183,13 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     setSalvando(true);
     setErro("");
     try {
-      const salvo = await banco.marcarProducao(evento.id, valor);
+      const salvo = evento ? await banco.marcarProducao(evento.id, valor) : materialDoPedido(await banco.marcarProducaoPedido(pedidoId, valor));
       // Guarda o que a Gestão ainda não salvou nos outros campos.
       const novo = { ...m, em_producao: salvo.em_producao, em_producao_por: salvo.em_producao_por, em_producao_em: salvo.em_producao_em };
       setM(novo);
       setAviso(valor ? "Marcado como em produção." : "Voltou para em aberto.");
-      onMudou(novo);
+      onMudou?.(novo);
+      if (!evento) onPedido?.({ ...(novo as unknown as Pedido), ...cab, id: pedidoId });
       if (valor) {
         // Avisa a Gestão e quem é responsável pela arte.
         const para = new Set([...equipe.filter((x) => x.papel === "gestao").map((x) => x.id), m.responsavel_id ?? ""]);
@@ -115,11 +199,10 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           para_id: id,
           de_nome: usuario.nome,
           tipo: "producao",
-          titulo: `Arte em produção · ${evento.nome}`,
+          titulo: `Arte em produção · ${alvo.nome}`,
           texto: `${usuario.nome} colocou a arte em produção.`,
-          evento_id: evento.id,
-          evento_data: evento.data,
-          abrir: "material",
+          ...(evento ? { evento_id: evento.id, evento_data: evento.data } : { pedido_id: pedidoId }),
+          abrir: destino,
         }));
         await enviarAvisos(lista);
       }
@@ -138,7 +221,7 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     setErro("");
     try {
       const novos = [];
-      for (const a of arquivos) novos.push(await banco.enviarAnexo(evento.id, a));
+      for (const a of arquivos) novos.push(await banco.enviarAnexo(evento?.id ?? (pedidoId || "pedidos"), a));
       await gravar({ ...m, anexos: [...m.anexos, ...novos] }, novos.length > 1 ? "Imagens anexadas." : "Imagem anexada.");
     } catch (er) {
       setErro(er instanceof Error ? er.message : "Não foi possível anexar.");
@@ -166,18 +249,32 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   const mudarLink = (i: number, campo: "artista" | "url", v: string) =>
     set("links_fotos", m.links_fotos.map((l, j) => (j === i ? { ...l, [campo]: v } : l)));
 
+  const cabecalhoBriefing = evento
+    ? [
+        `${topo.split(" - ")[0]} - ${casas} - ${evento.nome}`,
+        "",
+        m.descricao && `Descrição\n${m.descricao}`,
+        m.ideia && `Ideia para a arte\n${m.ideia}`,
+        "— — — — —",
+        `Topo\n${topo}`,
+        "",
+        evento.nome,
+        atracoes,
+        evento.entrada && `Entrada: ${evento.entrada}`,
+        evento.promocao && `Promoção: ${evento.promocao}`,
+      ]
+    : [
+        [cab.uso && dataCurta(cab.uso), casas, cab.pecas.join(" + "), cab.titulo].filter(Boolean).join(" - "),
+        "",
+        m.descricao && `Descrição\n${m.descricao}`,
+        m.ideia && `Ideia para a arte\n${m.ideia}`,
+        "— — — — —",
+        cab.uso && `Vai ser usada em: ${dataPorExtenso(cab.uso)}`,
+        m.prazo && `Entregar até: ${dataPorExtenso(m.prazo)}`,
+        cab.pecas.length > 0 && `Peças: ${cab.pecas.join(", ")}`,
+      ];
   const briefing = [
-    `${topo.split(" - ")[0]} - ${casas} - ${evento.nome}`,
-    "",
-    m.descricao && `Descrição\n${m.descricao}`,
-    m.ideia && `Ideia para a arte\n${m.ideia}`,
-    "— — — — —",
-    `Topo\n${topo}`,
-    "",
-    evento.nome,
-    atracoes,
-    evento.entrada && `Entrada: ${evento.entrada}`,
-    evento.promocao && `Promoção: ${evento.promocao}`,
+    ...cabecalhoBriefing,
     "— — — — —",
     links.length > 0 && `Links com fotos / press kit\n${links.map((l) => (l.artista ? `${l.artista}: ${l.url}` : l.url)).join("\n")}`,
     m.logotipo && `Logotipo\n${m.logotipo}`,
@@ -226,10 +323,69 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     <div className="fundo-modal" onClick={onFechar}>
       <div className="modal material" onClick={(e) => e.stopPropagation()}>
         <div className="modal-topo">
-          <h3>Material · {evento.nome}</h3>
+          <h3>{evento ? `Material · ${evento.nome}` : pedidoId ? `Pedido de arte · ${cab.titulo}` : "Novo pedido de arte"}</h3>
           <button type="button" className="link" onClick={onFechar} aria-label="Fechar">✕</button>
         </div>
 
+        {!evento && (
+          <section className="cabecalho-pedido">
+            {leitura ? (
+              <dl className="ficha">
+                <dt>Casa</dt><dd>{casas}</dd>
+                <dt>Peças</dt><dd>{cab.pecas.join(", ") || "—"}</dd>
+                <dt>Vai ser usada</dt><dd>{cab.uso ? dataPorExtenso(cab.uso) : "sem data"}</dd>
+              </dl>
+            ) : (
+              <div className="campos">
+                <label className="inteiro">
+                  O que é
+                  <input id="ped-titulo" value={cab.titulo} onChange={(e) => setCab({ ...cab, titulo: e.target.value })} placeholder="Ex.: Dia das Mulheres, cardápio novo, vagas de emprego" autoFocus={!pedidoId} />
+                </label>
+                <div className="inteiro">
+                  <span className="rotulo">Para qual casa</span>
+                  <div className="escolhas" role="group" aria-label="Casas">
+                    <button type="button" className={cab.casas.length === 0 ? "ativo" : ""} aria-pressed={cab.casas.length === 0} onClick={() => setCab({ ...cab, casas: [] })}>Todas</button>
+                    {CASAS.map((c) => {
+                      const on = cab.casas.includes(c.id);
+                      return (
+                        <button key={c.id} type="button" className={on ? "ativo" : ""} aria-pressed={on} onClick={() => setCab({ ...cab, casas: on ? cab.casas.filter((x) => x !== c.id) : [...cab.casas, c.id] })}>
+                          <i style={{ background: c.cor }} aria-hidden="true" />{c.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="inteiro">
+                  <span className="rotulo">Peças</span>
+                  <div className="escolhas" role="group" aria-label="Peças">
+                    {PECAS.map((x) => {
+                      const on = cab.pecas.includes(x);
+                      return (
+                        <button key={x} type="button" className={on ? "ativo" : ""} aria-pressed={on} onClick={() => setCab({ ...cab, pecas: on ? cab.pecas.filter((y) => y !== x) : [...cab.pecas, x] })}>{x}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <label>
+                  Vai ser usada em
+                  <input id="ped-uso" type="date" value={cab.uso ?? ""} onChange={(e) => setCab({ ...cab, uso: e.target.value || undefined })} />
+                  <small>Deixe vazio se não tem data (ex.: cardápio).</small>
+                </label>
+              </div>
+            )}
+          </section>
+        )}
+
+        {cab.entregue && !evento ? (
+          <div className="producao sim">
+            <span className="sinal" aria-hidden="true" />
+            <div>
+              <strong>Entregue</strong>
+              <small>A arte já foi entregue.</small>
+            </div>
+            {!leitura && <button type="button" onClick={() => gravarCab({ entregue: false }, "Voltou para em produção.")} disabled={salvando}>Desfazer</button>}
+          </div>
+        ) : (
         <div className={`producao ${m.em_producao ? "sim" : "nao"}`}>
           <span className="sinal" aria-hidden="true" />
           <div>
@@ -240,36 +396,44 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
                 : "Esta arte ainda não foi colocada em produção."}
             </small>
           </div>
-          <button type="button" className={m.em_producao ? "" : "primario"} onClick={alternarProducao} disabled={salvando}>
-            {m.em_producao ? "Voltar para em aberto" : "Coloquei em produção"}
-          </button>
+          {evento || pedidoId ? (
+            <button type="button" className={m.em_producao ? "" : "primario"} onClick={alternarProducao} disabled={salvando}>
+              {m.em_producao ? "Voltar para em aberto" : "Coloquei em produção"}
+            </button>
+          ) : (
+            <small>Envie o pedido para a agência poder marcar.</small>
+          )}
+          {!evento && m.em_producao && !leitura && (
+            <button type="button" className="primario" onClick={() => gravarCab({ entregue: true }, "Marcado como entregue.")} disabled={salvando}>Marcar entregue</button>
+          )}
         </div>
+        )}
 
         <div className="responsavel-linha">
           {leitura ? (
             <p>
-              <span className="rotulo">Responsável pela arte</span>
+              <span className="rotulo">{evento ? "Responsável pela arte" : "Quem faz"}</span>
               {nomeDe(equipe, m.responsavel_id) ? `@${nomeDe(equipe, m.responsavel_id)}` : "—"}
-              {m.prazo && <> · ir para produção até {dataPorExtenso(m.prazo)}</>}
+              {m.prazo && <> · {evento ? "ir para produção até" : "entregar até"} {dataPorExtenso(m.prazo)}</>}
             </p>
           ) : (
             <>
               <label>
-                Responsável pela arte
+                {evento ? "Responsável pela arte" : "Quem faz"}
                 <select id="mat-responsavel" value={m.responsavel_id ?? ""} onChange={(e) => set("responsavel_id", e.target.value || undefined)}>
                   <option value="">—</option>
                   {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.funcao && x.funcao !== x.nome ? ` (${x.funcao})` : ""}</option>)}
                 </select>
               </label>
               <label>
-                Ir para produção até
+                {evento ? "Ir para produção até" : "Entregar até"}
                 <input id="mat-prazo" type="date" value={m.prazo ?? ""} onChange={(e) => set("prazo", e.target.value || undefined)} />
               </label>
             </>
           )}
         </div>
 
-        <section className="do-evento">
+        {evento && <section className="do-evento">
           <h4>Do evento</h4>
           <dl>
             <dt>Topo</dt><dd>{topo}</dd>
@@ -280,13 +444,13 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
             {evento.promocao && (<><dt>Promoção</dt><dd>{evento.promocao}</dd></>)}
           </dl>
           <small>Esses dados vêm da ficha do evento.{leitura ? "" : " Para mudar, edite a ficha."}</small>
-        </section>
+        </section>}
 
         <div className="campos">
           <label className="inteiro">
-            Breve descrição do evento
+            {evento ? "Breve descrição do evento" : "Breve descrição"}
             {leitura ? <div className="texto-lido"><TextoComMencoes texto={m.descricao} /></div> : (
-              <CampoTexto id="mat-descricao" rows={3} value={m.descricao ?? ""} onChange={(v) => set("descricao", v)} placeholder="Ex.: outra arte da label Original Funk Hits. Use @ para chamar alguém." />
+              <CampoTexto id="mat-descricao" rows={3} value={m.descricao ?? ""} onChange={(v) => set("descricao", v)} placeholder={evento ? "Ex.: outra arte da label Original Funk Hits. Use @ para chamar alguém." : "Ex.: arte única para todas as casas, com os horários. Use @ para chamar alguém."} />
             )}
           </label>
           <label className="inteiro">
@@ -428,10 +592,13 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
 
         <div className="modal-rodape">
           <span className="espaco" />
+          {!evento && pedidoId && !leitura && (
+            <button type="button" className="perigo" onClick={apagarPedido}>{apagar ? "Confirmar: apagar" : "Apagar"}</button>
+          )}
           <button type="button" onClick={onFechar}>Fechar</button>
           {!leitura && (
-            <button type="button" className="primario" disabled={salvando} onClick={() => gravar(m, "Material salvo.")}>
-              {salvando ? "Salvando…" : "Salvar material"}
+            <button type="button" className="primario" disabled={salvando} onClick={() => gravar(m, evento ? "Material salvo." : pedidoId ? "Pedido salvo." : "Pedido enviado.")}>
+              {salvando ? "Salvando…" : evento ? "Salvar material" : pedidoId ? "Salvar pedido" : "Enviar pedido"}
             </button>
           )}
         </div>

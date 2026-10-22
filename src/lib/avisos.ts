@@ -2,7 +2,7 @@ import type { DataISO } from "./datas.ts";
 
 export type TipoAviso = "mencao" | "tarefa" | "cobranca" | "producao";
 /** Qual parte do evento o aviso abre. */
-export type Destino = "evento" | "material" | "divulgacao" | "conversa";
+export type Destino = "evento" | "material" | "divulgacao" | "conversa" | "pedido";
 
 export interface Aviso {
   id: string;
@@ -13,6 +13,8 @@ export interface Aviso {
   texto?: string;
   evento_id?: string;
   evento_data?: DataISO;
+  /** Quando o aviso é de um pedido de arte (sem evento). */
+  pedido_id?: string;
   abrir?: Destino;
   criado_em: string;
   lido: boolean;

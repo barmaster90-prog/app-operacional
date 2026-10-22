@@ -10,18 +10,22 @@ import { EquipeContexto, GerenciarEquipe } from "./Equipe.tsx";
 import { Avisos } from "./Avisos.tsx";
 import { Pendencias } from "./Pendencias.tsx";
 import { SemanaMarketing } from "./SemanaMarketing.tsx";
+import { PedidosArte } from "./PedidosArte.tsx";
+import { MaterialEvento } from "./MaterialEvento.tsx";
+import { lembretesDeArte, pedidoVazio, type Pedido } from "../lib/pedidos.ts";
 import type { Membro } from "../lib/equipe.ts";
 import type { Aviso, Destino } from "../lib/avisos.ts";
-import { montarTarefas, situacao, type Tarefa } from "../lib/tarefas.ts";
+import { destinoDaTarefa, montarTarefas, situacao, type Tarefa } from "../lib/tarefas.ts";
 
 const CHAVE_ABA = "app-operacional-aba";
 const CHAVE_VISAO = "app-operacional-visao";
 
-type Visao = "agenda" | "pendencias" | "marketing";
+type Visao = "agenda" | "pendencias" | "marketing" | "pedidos";
 const VISOES: { id: Visao; nome: string }[] = [
   { id: "agenda", nome: "Agenda" },
   { id: "pendencias", nome: "Pendências" },
   { id: "marketing", nome: "Marketing" },
+  { id: "pedidos", nome: "Pedidos" },
 ];
 
 function lerVisao(): Visao {
@@ -68,6 +72,8 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
   const [verEquipe, setVerEquipe] = useState(false);
   const [destino, setDestino] = useState<Destino | undefined>();
   const [recado, setRecado] = useState("");
+  const [pedidoAberto, setPedidoAberto] = useState<Pedido | null>(null);
+  const [datasProximas, setDatasProximas] = useState<DataEspecial[]>([]);
 
   const grade = useMemo(() => gradeDoMes(ano, mes), [ano, mes]);
   const de = grade[0];
@@ -87,10 +93,17 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
 
   // Equipe, avisos e o que os painéis precisam (30 dias para trás, 90 para frente).
   const carregarExtras = useCallback(async () => {
-    const [eq, av, dp] = await Promise.allSettled([banco.equipe(), banco.avisos(), banco.painel(somarDias(hoje, -30), somarDias(hoje, 90))]);
+    const [eq, av, dp, ds] = await Promise.allSettled([
+      banco.equipe(),
+      banco.avisos(),
+      banco.painel(somarDias(hoje, -30), somarDias(hoje, 90)),
+      // Datas comerciais dos próximos meses, para lembrar de pedir arte.
+      banco.datasEspeciais(hoje, somarDias(hoje, 180)),
+    ]);
     if (eq.status === "fulfilled") setEquipe(eq.value);
     if (av.status === "fulfilled") setAvisos(av.value);
     if (dp.status === "fulfilled") setDados(dp.value);
+    if (ds.status === "fulfilled") setDatasProximas(ds.value);
   }, [hoje, usuario.id]);
 
   const recarregarTudo = useCallback(async () => {
@@ -123,15 +136,39 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
 
   const minhas = useMemo(() => {
     if (!dados) return [];
-    return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes).filter(
+    return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes, dados.pedidos).filter(
       (t) => t.responsavel_id === usuario.id && ["atrasada", "semana"].includes(situacao(t, hoje)),
     );
   }, [dados, usuario.id, hoje]);
   const naoLidos = avisos.filter((a) => !a.lido).length;
+  const lembretes = useMemo(() => (dados ? lembretesDeArte(datasProximas, dados.pedidos, hoje) : []), [datasProximas, dados, hoje]);
+  const pedidosPorDia = useMemo(() => {
+    const mapa = new Map<DataISO, Pedido[]>();
+    for (const p of dados?.pedidos ?? []) {
+      if (!p.uso || (aba !== "geral" && p.casas.length > 0 && !p.casas.some((c) => casa(c).aba === aba))) continue;
+      mapa.set(p.uso, [...(mapa.get(p.uso) ?? []), p]);
+    }
+    return mapa;
+  }, [dados, aba]);
+
+  function novoPedido(campos: Partial<Pedido> = {}) {
+    setVerAvisos(false);
+    setPedidoAberto(pedidoVazio(campos));
+  }
+
+  /** Atualiza o pedido na lista sem recarregar tudo. */
+  function pedidoMudou(p: Pedido) {
+    setDados((d) => (d ? { ...d, pedidos: [p, ...d.pedidos.filter((x) => x.id !== p.id)] } : d));
+  }
   const atrasadasMinhas = minhas.filter((t) => situacao(t, hoje) === "atrasada").length;
 
   async function abrirEvento(eventoId: string, data: string | undefined, onde: Destino) {
     setVerAvisos(false);
+    if (onde === "pedido") {
+      const p = (dados?.pedidos ?? []).find((x) => x.id === eventoId) ?? (await banco.pedidos()).find((x) => x.id === eventoId);
+      if (!p) return setRecado("Esse pedido não existe mais.");
+      return setPedidoAberto(p);
+    }
     const lista = data ? await banco.eventos(data, data) : (dados?.eventos ?? []);
     const e = lista.find((x) => x.id === eventoId);
     if (!e) return setRecado("Esse evento não existe mais.");
@@ -154,9 +191,8 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
         tipo: "cobranca",
         titulo: `${usuario.nome} cobrou: ${t.titulo}`,
         texto: `${t.evento.nome}.${prazo}`,
-        evento_id: t.evento.id,
-        evento_data: t.evento.data,
-        abrir: t.tipo === "arte" ? "material" : "divulgacao",
+        ...(t.pedido ? { pedido_id: t.pedido.id } : { evento_id: t.evento.id, evento_data: t.evento.data }),
+        abrir: destinoDaTarefa(t),
       },
     ]);
     setRecado(`Cobrança enviada para @${equipe.find((m) => m.id === t.responsavel_id)?.nome ?? "responsável"}.`);
@@ -247,6 +283,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
           <button key={v.id} type="button" className={v.id === visao ? "ativa" : ""} aria-current={v.id === visao ? "page" : undefined} onClick={() => setVisao(v.id)}>
             {v.nome}
             {v.id === "pendencias" && atrasadasMinhas > 0 && <span className="contador">{atrasadasMinhas}</span>}
+            {v.id === "pedidos" && ehGestao(usuario) && lembretes.length > 0 && <span className="contador">{lembretes.length}</span>}
           </button>
         ))}
       </nav>
@@ -255,6 +292,9 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
 
       {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} />}
       {visao === "marketing" && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} />}
+      {visao === "pedidos" && (
+        <PedidosArte usuario={usuario} pedidos={dados?.pedidos ?? null} lembretes={lembretes} onAbrir={setPedidoAberto} onNovo={novoPedido} />
+      )}
 
       {visao === "agenda" && (<>
       <nav className="abas" aria-label="Casas">
@@ -283,6 +323,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             {grade.map((d) => {
               const [, m, dia] = partes(d);
               const evs = eventosPorDia.get(d) ?? [];
+              const peds = pedidosPorDia.get(d) ?? [];
               const especiais = datasPorDia.get(d) ?? [];
               const feriado = especiais.some((x) => x.tipo === "feriado");
               const classes = [
@@ -311,6 +352,12 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                       </span>
                     ))}
                     {evs.length > 3 && <span className="mais">+{evs.length - 3}</span>}
+                    {peds.slice(0, evs.length > 2 ? 1 : 2).map((p) => (
+                      <span key={p.id} className="chip chip-pedido" title={`Pedido de arte: ${p.titulo}`}>
+                        <span className={`sinal ${p.em_producao || p.entregue ? "sim" : "nao"}`} aria-hidden="true" />
+                        <b>Arte</b> {p.titulo}
+                      </span>
+                    ))}
                   </span>
                 </button>
               );
@@ -328,11 +375,14 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             data={diaAberto}
             eventos={eventosPorDia.get(diaAberto) ?? []}
             especiais={datasPorDia.get(diaAberto) ?? []}
+            pedidos={pedidosPorDia.get(diaAberto) ?? []}
             podeEditar={ehGestao(usuario)}
+            onPedirArte={(nome?: string) => novoPedido({ titulo: nome ?? "", uso: diaAberto })}
+            onAbrirPedido={setPedidoAberto}
             onFechar={() => setDiaAberto(null)}
             onNovo={() => novoEvento(diaAberto)}
             onEditar={(e) => setEditando(e)}
-            onDatasMudaram={carregar}
+            onDatasMudaram={recarregarTudo}
           />
         )}
       </div>
@@ -361,6 +411,18 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             fecharEvento();
             await recarregarTudo();
           }}
+        />
+      )}
+
+      {pedidoAberto && (
+        <MaterialEvento
+          key={pedidoAberto.id || "novo"}
+          pedido={pedidoAberto}
+          usuario={usuario}
+          datasExtras={datasCadastradas}
+          onFechar={() => setPedidoAberto(null)}
+          onPedido={pedidoMudou}
+          onPedidoApagado={(id) => setDados((d) => (d ? { ...d, pedidos: d.pedidos.filter((x) => x.id !== id) } : d))}
         />
       )}
 

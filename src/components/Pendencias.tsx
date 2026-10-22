@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
-import { ABAS, casa, eventoDaAba, type AbaId } from "../lib/tipos.ts";
+import { ABAS, eventoDaAba, type AbaId } from "../lib/tipos.ts";
 import { hojeISO, somarDias } from "../lib/datas.ts";
-import { dataDaTarefa, montarTarefas, situacao, type Situacao, type Tarefa } from "../lib/tarefas.ts";
+import { casaDaTarefa, dataDaTarefa, destinoDaTarefa, montarTarefas, situacao, type Situacao, type Tarefa } from "../lib/tarefas.ts";
 import type { Destino } from "../lib/avisos.ts";
 import { nomeDe, useEquipe } from "./Equipe.tsx";
 
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "—");
-export const destinoDa = (t: Tarefa): Destino => (t.tipo === "arte" ? "material" : "divulgacao");
+export const destinoDa = destinoDaTarefa;
 
 const SECOES: { id: Situacao; titulo: string; vazio: string }[] = [
   { id: "atrasada", titulo: "Atrasadas", vazio: "Nada atrasado." },
@@ -31,15 +31,15 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
 
   const tarefas = useMemo(() => {
     if (!dados) return [];
-    return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes)
-      .filter((t) => eventoDaAba(t.evento, aba))
+    return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes, dados.pedidos)
+      .filter((t) => (t.pedido && t.evento.casas.length === 0) || eventoDaAba(t.evento, aba))
       .filter((t) => !soMinhas || t.responsavel_id === usuario.id)
       .sort((a, b) => dataDaTarefa(a).localeCompare(dataDaTarefa(b)));
   }, [dados, aba, soMinhas, usuario.id]);
 
   const por = (s: Situacao) => tarefas.filter((t) => situacao(t, hoje) === s);
   const postsSemana = tarefas.filter((t) => t.tipo === "post" && !t.feito && t.prazo && t.prazo >= hoje && t.prazo <= somarDias(hoje, 7)).length;
-  const artesAbertas = tarefas.filter((t) => t.tipo === "arte" && !t.feito && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)).length;
+  const artesAbertas = tarefas.filter((t) => (t.tipo === "arte" || t.tipo === "pedido") && !t.feito && t.evento.data && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)).length;
 
   async function cobrar(t: Tarefa) {
     await onCobrar(t);
@@ -86,14 +86,14 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
                   <ul>
                     {lista.map((t) => {
                       const resp = nomeDe(equipe, t.responsavel_id);
-                      const c = casa(t.evento.casas[0]);
+                      const c = casaDaTarefa(t);
                       return (
                         <li key={t.chave} className="tarefa">
                           <span className={`sinal-tarefa ${sec.id}`} aria-hidden="true" />
                           <div className="oque">
                             <strong>{t.titulo}{t.detalhe && <small> · {t.detalhe}</small>}</strong>
                             <span>
-                              <i className="etiqueta" style={{ background: c.cor }}>{c.curto}</i> {t.evento.nome} · {dataCurta(t.evento.data)}
+                              <i className="etiqueta" style={{ background: c.cor }}>{c.curto}</i> {t.evento.nome}{t.evento.data && ` · ${dataCurta(t.evento.data)}`}
                             </span>
                           </div>
                           <span className="prazo">{t.prazo ? (sec.id === "atrasada" ? `venceu ${dataCurta(t.prazo)}` : dataCurta(t.prazo)) : "sem prazo"}</span>

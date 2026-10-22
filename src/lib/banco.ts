@@ -7,6 +7,7 @@ import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./
 import { divulgacaoVazia, normalizarDivulgacao, type Divulgacao, type ListaFeita } from "./divulgacao.ts";
 import { EQUIPE_EXEMPLO, type Membro } from "./equipe.ts";
 import type { Aviso, AvisoNovo, Comentario } from "./avisos.ts";
+import { normalizarPedido, type Pedido } from "./pedidos.ts";
 
 /** Gestão vê e edita tudo. Produção vê a agenda e o Material e marca "em produção", sem ver valores. */
 export type Papel = "gestao" | "producao";
@@ -63,12 +64,20 @@ export interface Banco {
   marcarLidos(ids: string[]): Promise<void>;
   /** Eventos com Material e Divulgação, para os painéis. */
   painel(de: DataISO, ate: DataISO): Promise<DadosPainel>;
+  /** Pedidos de arte sem evento (todos; são poucos). */
+  pedidos(): Promise<Pedido[]>;
+  /** Gestão cria e edita. Devolve o pedido com o id gravado. */
+  salvarPedido(p: Pedido): Promise<Pedido>;
+  apagarPedido(id: string): Promise<void>;
+  /** Liberado também para a Produção, como no Material. */
+  marcarProducaoPedido(id: string, emProducao: boolean): Promise<Pedido>;
 }
 
 export interface DadosPainel {
   eventos: Evento[];
   materiais: Record<string, Material>;
   divulgacoes: Record<string, Divulgacao>;
+  pedidos: Pedido[];
 }
 
 /** Limite por imagem no modo demonstração, que guarda tudo no navegador. */
@@ -88,6 +97,16 @@ function bancoSupabase(sb: SupabaseClient): Banco {
     const { data } = await sb.from("perfis").select("nome, papel").eq("id", u.id).maybeSingle();
     return { id: u.id, email, nome: data?.nome || email.split("@")[0], papel: data?.papel === "gestao" ? "gestao" : "producao" };
   }
+
+  // O armazenamento é privado: gera links temporários para mostrar as imagens.
+  const assinar = (anexos: Anexo[]) =>
+    Promise.all(
+      anexos.map(async (a) => {
+        if (!a.caminho) return a;
+        const { data: u } = await sb.storage.from("materiais").createSignedUrl(a.caminho, 60 * 60);
+        return { ...a, url: u?.signedUrl ?? "" };
+      }),
+    );
 
   return {
     demo: false,
@@ -165,15 +184,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { data, error } = await sb.from("materiais").select("*").eq("evento_id", eventoId).maybeSingle();
       if (error) throw error;
       const m = data ? normalizarMaterial(data) : materialVazio(eventoId);
-      // O armazenamento é privado: gera links temporários para mostrar as imagens.
-      const anexos = await Promise.all(
-        m.anexos.map(async (a) => {
-          if (!a.caminho) return a;
-          const { data: u } = await sb.storage.from("materiais").createSignedUrl(a.caminho, 60 * 60);
-          return { ...a, url: u?.signedUrl ?? "" };
-        }),
-      );
-      return { ...m, anexos };
+      return { ...m, anexos: await assinar(m.anexos) };
     },
     async salvarMaterial(m) {
       const paraGravar = { ...m, anexos: m.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
@@ -262,12 +273,40 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { error } = await sb.from("avisos").update({ lido: true }).in("id", ids);
       if (error) throw error;
     },
+    async pedidos() {
+      const { data, error } = await sb.from("pedidos_arte").select("*").order("criado_em", { ascending: false });
+      if (error) throw error;
+      return Promise.all((data as Record<string, unknown>[]).map(async (x) => {
+        const p = normalizarPedido(x);
+        return { ...p, anexos: await assinar(p.anexos) };
+      }));
+    },
+    async salvarPedido(p) {
+      const { id, ...resto } = p;
+      const linha = { ...resto, anexos: p.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
+      const q = id ? sb.from("pedidos_arte").update(linha).eq("id", id) : sb.from("pedidos_arte").insert(linha);
+      const { data, error } = await q.select().single();
+      if (error) throw error;
+      return { ...normalizarPedido(data), anexos: p.anexos };
+    },
+    async apagarPedido(id) {
+      const { error } = await sb.from("pedidos_arte").delete().eq("id", id);
+      if (error) throw error;
+    },
+    async marcarProducaoPedido(id, emProducao) {
+      const { error } = await sb.rpc("marcar_producao_pedido", { p_pedido: id, p_valor: emProducao });
+      if (error) throw error;
+      const { data, error: e2 } = await sb.from("pedidos_arte").select("*").eq("id", id).single();
+      if (e2) throw e2;
+      const p = normalizarPedido(data);
+      return { ...p, anexos: await assinar(p.anexos) };
+    },
     async painel(de, ate) {
       const { data, error } = await sb.from("eventos").select("*, materiais(*), divulgacoes(*)").gte("data", de).lte("data", ate);
       if (error) throw error;
       const primeiro = <T,>(x: T | T[] | null) => (Array.isArray(x) ? x[0] : x) ?? undefined;
       type Linha = Evento & { materiais: Record<string, unknown> | null; divulgacoes: Record<string, unknown> | null };
-      const res: DadosPainel = { eventos: [], materiais: {}, divulgacoes: {} };
+      const res: DadosPainel = { eventos: [], materiais: {}, divulgacoes: {}, pedidos: await this.pedidos() };
       for (const { materiais, divulgacoes, ...e } of data as Linha[]) {
         const m = primeiro(materiais);
         const d = primeiro(divulgacoes);
@@ -292,6 +331,7 @@ function bancoDemo(): Banco {
     equipe?: Membro[];
     comentarios?: Comentario[];
     avisos?: Aviso[];
+    pedidos?: Pedido[];
   };
   const ler = (): Estado => {
     try {
@@ -464,9 +504,35 @@ function bancoDemo(): Banco {
       estado.avisos = (estado.avisos ?? []).map((a) => (ids.includes(a.id) ? { ...a, lido: true } : a));
       gravar();
     },
+    async pedidos() {
+      return (estado.pedidos ?? []).map((p) => normalizarPedido(p as unknown as Record<string, unknown>));
+    },
+    async salvarPedido(p) {
+      const novo = { ...p, id: p.id || novoId(), criado_em: p.criado_em ?? new Date().toISOString(), criado_por: p.criado_por ?? estado.usuario?.nome };
+      estado.pedidos = [novo, ...(estado.pedidos ?? []).filter((x) => x.id !== novo.id)];
+      gravar();
+      return novo;
+    },
+    async apagarPedido(id) {
+      estado.pedidos = (estado.pedidos ?? []).filter((x) => x.id !== id);
+      gravar();
+    },
+    async marcarProducaoPedido(id, emProducao) {
+      const p = (estado.pedidos ?? []).find((x) => x.id === id);
+      if (!p) throw new Error("Salve o pedido antes de marcar.");
+      const novo: Pedido = {
+        ...p,
+        em_producao: emProducao,
+        em_producao_por: emProducao ? estado.usuario?.nome : undefined,
+        em_producao_em: emProducao ? new Date().toISOString() : undefined,
+      };
+      estado.pedidos = (estado.pedidos ?? []).map((x) => (x.id === id ? novo : x));
+      gravar();
+      return novo;
+    },
     async painel(de, ate) {
       const eventos = await this.eventos(de, ate);
-      const res: DadosPainel = { eventos, materiais: {}, divulgacoes: {} };
+      const res: DadosPainel = { eventos, materiais: {}, divulgacoes: {}, pedidos: await this.pedidos() };
       for (const e of eventos) {
         const m = estado.materiais?.[e.id];
         const d = estado.divulgacoes?.[e.id];

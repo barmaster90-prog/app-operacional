@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { Aviso, Destino } from "../lib/avisos.ts";
-import { situacao, type Tarefa } from "../lib/tarefas.ts";
-import { casa } from "../lib/tipos.ts";
+import { casaDaTarefa, destinoDaTarefa, situacao, type Tarefa } from "../lib/tarefas.ts";
 import { hojeISO } from "../lib/datas.ts";
 
 interface Props {
@@ -62,13 +61,13 @@ export function Avisos({ avisos, minhas, onAbrir, onLidos, onFechar }: Props) {
                     type="button"
                     key={t.chave}
                     className="aviso"
-                    onClick={() => onAbrir(t.evento.id, t.evento.data, t.tipo === "arte" ? "material" : "divulgacao")}
+                    onClick={() => onAbrir(t.evento.id, t.evento.data, destinoDaTarefa(t))}
                   >
                     <span className={`icone ${atrasada ? "cobranca" : "tarefa"}`} aria-hidden="true">!</span>
                     <span className="corpo-aviso">
                       <strong>{atrasada ? "Atrasada" : "Vence esta semana"}: {t.titulo}</strong>
-                      <span>{casa(t.evento.casas[0]).curto} · {t.evento.nome}</span>
-                      <small>{t.prazo ? `prazo ${dataCurta(t.prazo)}` : `evento ${dataCurta(t.evento.data)}`}</small>
+                      <span>{casaDaTarefa(t).curto} · {t.evento.nome}</span>
+                      <small>{t.prazo ? `prazo ${dataCurta(t.prazo)}` : t.evento.data ? `evento ${dataCurta(t.evento.data)}` : "sem prazo"}</small>
                     </span>
                   </button>
                 );
@@ -84,7 +83,8 @@ export function Avisos({ avisos, minhas, onAbrir, onLidos, onFechar }: Props) {
                 className={`aviso ${a.lido ? "" : "novo"}`}
                 onClick={() => {
                   if (!a.lido) onLidos([a.id]);
-                  if (a.evento_id) onAbrir(a.evento_id, a.evento_data, a.abrir ?? "evento");
+                  if (a.pedido_id) onAbrir(a.pedido_id, undefined, "pedido");
+                  else if (a.evento_id) onAbrir(a.evento_id, a.evento_data, a.abrir ?? "evento");
                 }}
               >
                 <span className={`icone ${a.tipo}`} aria-hidden="true">{ICONE[a.tipo]}</span>

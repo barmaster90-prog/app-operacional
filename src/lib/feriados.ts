@@ -9,6 +9,9 @@ export interface DataEspecial {
   /** true quando foi cadastrada pela equipe (pode editar/apagar). */
   editavel?: boolean;
   id?: string;
+  /** Lembrar de pedir arte para esta data, com quantos dias de antecedência. */
+  precisa_arte?: boolean;
+  avisar_dias?: number;
 }
 
 /** Domingo de Páscoa (algoritmo gregoriano de Meeus/Jones/Butcher). */

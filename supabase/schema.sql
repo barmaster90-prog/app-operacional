@@ -123,6 +123,38 @@ create table if not exists public.divulgacoes (
   videos jsonb not null default '[]'::jsonb -- [{ id, titulo, responsavel, prazo, roteiro, feito }]
 );
 
+-- Pedidos de arte sem evento (data comemorativa, cardápio, vagas…). Mesmo briefing do Material.
+create table if not exists public.pedidos_arte (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  casas text[] not null default '{}', -- vazio = todas as casas
+  pecas text[] not null default '{}',
+  uso date, -- quando a arte vai ser usada
+  prazo date, -- entregar até
+  responsavel_id uuid references public.perfis (id) on delete set null,
+  descricao text,
+  ideia text,
+  links_fotos jsonb not null default '[]'::jsonb,
+  logotipo text,
+  referencia text,
+  importante text,
+  anexos jsonb not null default '[]'::jsonb,
+  animado jsonb not null default '{"links": []}'::jsonb,
+  em_producao boolean not null default false,
+  em_producao_por text,
+  em_producao_em timestamptz,
+  entregue boolean not null default false,
+  criado_por text,
+  criado_em timestamptz not null default now()
+);
+
+-- Datas comerciais podem pedir um lembrete de arte.
+alter table public.datas_especiais add column if not exists precisa_arte boolean not null default false;
+alter table public.datas_especiais add column if not exists avisar_dias integer;
+
+-- Avisos também podem abrir um pedido de arte.
+alter table public.avisos add column if not exists pedido_id uuid references public.pedidos_arte (id) on delete cascade;
+
 create or replace function public.marcar_atualizacao() returns trigger language plpgsql as $$
 begin
   new.atualizado_em = now();
@@ -142,6 +174,13 @@ alter table public.materiais enable row level security;
 alter table public.divulgacoes enable row level security;
 alter table public.comentarios enable row level security;
 alter table public.avisos enable row level security;
+alter table public.pedidos_arte enable row level security;
+
+drop policy if exists "equipe lê pedidos" on public.pedidos_arte;
+create policy "equipe lê pedidos" on public.pedidos_arte for select to authenticated using (true);
+drop policy if exists "gestão grava pedidos" on public.pedidos_arte;
+create policy "gestão grava pedidos" on public.pedidos_arte for all to authenticated
+  using (public.e_gestao()) with check (public.e_gestao());
 
 drop policy if exists "equipe acessa eventos" on public.eventos;
 drop policy if exists "equipe acessa datas" on public.datas_especiais;
@@ -243,6 +282,24 @@ end $$;
 
 revoke all on function public.marcar_producao(uuid, boolean) from public, anon;
 grant execute on function public.marcar_producao(uuid, boolean) to authenticated;
+
+-- Mesma coisa para os pedidos de arte.
+create or replace function public.marcar_producao_pedido(p_pedido uuid, p_valor boolean) returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  quem text;
+begin
+  if auth.uid() is null then raise exception 'Faça login.'; end if;
+  select coalesce(nome, 'equipe') into quem from public.perfis where id = auth.uid();
+  update public.pedidos_arte set
+    em_producao = p_valor,
+    em_producao_por = case when p_valor then quem end,
+    em_producao_em = case when p_valor then now() end
+  where id = p_pedido;
+end $$;
+
+revoke all on function public.marcar_producao_pedido(uuid, boolean) from public, anon;
+grant execute on function public.marcar_producao_pedido(uuid, boolean) to authenticated;
 
 -- Imagens anexadas ao material ficam num bucket privado.
 insert into storage.buckets (id, name, public) values ('materiais', 'materiais', false)
