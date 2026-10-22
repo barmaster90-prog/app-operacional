@@ -1,0 +1,9 @@
+{
+  "name": "Agenda das casas",
+  "short_name": "Agenda",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16141f",
+  "theme_color": "#16141f",
+  "lang": "pt-BR"
+}
