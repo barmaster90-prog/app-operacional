@@ -157,7 +157,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                         style={{ background: casa(e.casas[0]).cor, borderRight: e.casas[1] ? `6px solid ${casa(e.casas[1]).cor}` : undefined }}
                         title={`${rotuloCasas(e)}: ${e.nome}`}
                       >
-                        {aba === "geral" && <b>{rotuloCasas(e)}</b>} {e.nome}
+                        {(aba === "geral" || casa(e.casas[0]).aba !== aba) && <b>{rotuloCasas(e)}</b>} {e.nome}
                       </span>
                     ))}
                     {evs.length > 3 && <span className="mais">+{evs.length - 3}</span>}

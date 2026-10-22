@@ -91,7 +91,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
 
 /** Modo demonstração: guarda só neste navegador. Serve para ver o app antes de criar o Supabase. */
 function bancoDemo(): Banco {
-  const CHAVE = "app-operacional-demo-v1";
+  const CHAVE = "app-operacional-demo-v2";
   type Estado = { usuario: Usuario | null; eventos: Evento[]; datas: DataEspecial[] };
   const ler = (): Estado => {
     try {
