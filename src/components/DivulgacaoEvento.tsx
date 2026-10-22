@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { banco, ehGestao, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
@@ -11,6 +11,9 @@ import {
   type Postagem,
   type Video,
 } from "../lib/divulgacao.ts";
+import { avisoDeTarefa, avisosDeMencao, enviarAvisos } from "../lib/notificar.ts";
+import { CampoTexto, TextoComMencoes } from "./CampoTexto.tsx";
+import { nomeDe, useEquipe } from "./Equipe.tsx";
 
 interface Props {
   evento: Evento;
@@ -35,11 +38,14 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
   const [salvando, setSalvando] = useState(false);
   // Produção vê tudo (menos o valor) e marca o que já foi postado ou gravado.
   const leitura = !ehGestao(usuario);
+  const equipe = useEquipe();
+  const salvoRef = useRef<Divulgacao | null>(null);
 
   useEffect(() => {
     banco
       .divulgacao(evento.id)
       .then((x) => {
+        salvoRef.current = x;
         setD(x);
         setValor(x.impulso_valor != null ? String(x.impulso_valor) : "");
       })
@@ -66,9 +72,28 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
     setErro("");
     try {
       const salvo = await banco.salvarDivulgacao({ ...d, impulso_valor: lerReais(valor) });
+      const antes = salvoRef.current;
+      salvoRef.current = salvo;
       setD(salvo);
       setAviso("Divulgação salva.");
       onMudou(salvo);
+      const postAntes = new Map(antes?.postagens.map((p) => [p.id, p]));
+      const videoAntes = new Map(antes?.videos.map((v) => [v.id, v]));
+      await enviarAvisos([
+        ...avisosDeMencao(
+          salvo.videos.map((v) => ({ onde: `Roteiro${v.titulo ? ` (${v.titulo})` : ""}`, antes: videoAntes.get(v.id)?.roteiro, depois: v.roteiro })),
+          equipe,
+          usuario,
+          evento,
+          "divulgacao",
+        ),
+        ...salvo.postagens.flatMap((p) =>
+          avisoDeTarefa(p.responsavel_id, postAntes.get(p.id)?.responsavel_id, usuario, evento, "divulgacao", `Postar ${p.rede} · ${p.formato}`, p.data),
+        ),
+        ...salvo.videos.flatMap((v) =>
+          avisoDeTarefa(v.responsavel_id, videoAntes.get(v.id)?.responsavel_id, usuario, evento, "divulgacao", `Vídeo${v.titulo ? `: ${v.titulo}` : ""}`, v.prazo),
+        ),
+      ]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
     } finally {
@@ -151,7 +176,10 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                   <span>{p.feito ? "Postado" : "A postar"}</span>
                 </label>
                 {leitura ? (
-                  <span className="resumo-item">{dataCurta(p.data)} · {p.rede} · {p.formato}</span>
+                  <span className="resumo-item">
+                    {dataCurta(p.data)} · {p.rede} · {p.formato}
+                    {nomeDe(equipe, p.responsavel_id) && <strong className="mencao"> · @{nomeDe(equipe, p.responsavel_id)}</strong>}
+                  </span>
                 ) : (
                   <>
                     <input type="date" aria-label="Data" value={p.data ?? ""} onChange={(e) => mudarPostagem(p.id, { data: e.target.value || undefined })} />
@@ -160,6 +188,10 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                     </select>
                     <select aria-label="Formato" value={p.formato} onChange={(e) => mudarPostagem(p.id, { formato: e.target.value })}>
                       {FORMATOS.map((f) => <option key={f}>{f}</option>)}
+                    </select>
+                    <select aria-label="Quem posta" value={p.responsavel_id ?? ""} onChange={(e) => mudarPostagem(p.id, { responsavel_id: e.target.value || undefined })}>
+                      <option value="">Quem posta?</option>
+                      {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
                     </select>
                     <button type="button" className="link" onClick={() => set("postagens", d.postagens.filter((x) => x.id !== p.id))}>remover</button>
                   </>
@@ -232,9 +264,9 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                 {leitura ? (
                   <dl className="ficha">
                     <dt>O quê</dt><dd>{v.titulo || "—"}</dd>
-                    <dt>Quem produz</dt><dd>{v.responsavel || "—"}</dd>
+                    <dt>Quem produz</dt><dd>{nomeDe(equipe, v.responsavel_id) ? `@${nomeDe(equipe, v.responsavel_id)}` : v.responsavel || "—"}</dd>
                     <dt>Prazo</dt><dd>{v.prazo ? dataPorExtenso(v.prazo) : "—"}</dd>
-                    <dt>Roteiro</dt><dd className="roteiro">{v.roteiro || "—"}</dd>
+                    <dt>Roteiro</dt><dd className="roteiro"><TextoComMencoes texto={v.roteiro} /></dd>
                   </dl>
                 ) : (
                   <div className="campos">
@@ -244,7 +276,10 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                     </label>
                     <label>
                       Quem produz
-                      <input value={v.responsavel ?? ""} onChange={(e) => mudarVideo(v.id, { responsavel: e.target.value })} />
+                      <select value={v.responsavel_id ?? ""} onChange={(e) => mudarVideo(v.id, { responsavel_id: e.target.value || undefined })}>
+                        <option value="">{v.responsavel ? `${v.responsavel} (escrito antes)` : "—"}</option>
+                        {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                      </select>
                     </label>
                     <label>
                       Prazo
@@ -252,7 +287,7 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                     </label>
                     <label className="inteiro">
                       Roteiro
-                      <textarea rows={4} value={v.roteiro ?? ""} onChange={(e) => mudarVideo(v.id, { roteiro: e.target.value })} placeholder="Cenas, falas, músicas, takes que precisam…" />
+                      <CampoTexto rows={4} value={v.roteiro ?? ""} onChange={(t) => mudarVideo(v.id, { roteiro: t })} placeholder="Cenas, falas, músicas, takes que precisam… Use @ para chamar alguém." />
                     </label>
                   </div>
                 )}

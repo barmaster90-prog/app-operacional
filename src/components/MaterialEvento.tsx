@@ -4,6 +4,11 @@ import { casa, type Evento } from "../lib/tipos.ts";
 import { FORMATOS_ANIMADO, topoDaArte, type Animado, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { baixarArquivo } from "../lib/baixar.ts";
+import { dataPorExtenso } from "../lib/datas.ts";
+import { avisoDeTarefa, avisosDeMencao, enviarAvisos } from "../lib/notificar.ts";
+import type { AvisoNovo } from "../lib/avisos.ts";
+import { CampoTexto, TextoComMencoes } from "./CampoTexto.tsx";
+import { nomeDe, useEquipe } from "./Equipe.tsx";
 
 interface Props {
   evento: Evento;
@@ -26,11 +31,20 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
   const [salvando, setSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const textoRef = useRef<HTMLTextAreaElement>(null);
+  // Última versão salva: para saber quem foi mencionado ou virou responsável agora.
+  const salvoRef = useRef<Material | null>(null);
+  const equipe = useEquipe();
   // Produção só lê, baixa e marca "em produção"; quem preenche é a Gestão.
   const leitura = !ehGestao(usuario);
 
   useEffect(() => {
-    banco.material(evento.id).then(setM).catch((e) => setErro(e instanceof Error ? e.message : "Erro ao abrir o material."));
+    banco
+      .material(evento.id)
+      .then((x) => {
+        salvoRef.current = x;
+        setM(x);
+      })
+      .catch((e) => setErro(e instanceof Error ? e.message : "Erro ao abrir o material."));
   }, [evento.id]);
 
   if (!m) {
@@ -51,9 +65,26 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
     setErro("");
     try {
       const salvo = await banco.salvarMaterial(novo);
+      const antes = salvoRef.current;
+      salvoRef.current = salvo;
       setM(salvo);
       setAviso(msg);
       onMudou(salvo);
+      await enviarAvisos([
+        ...avisosDeMencao(
+          [
+            { onde: "Descrição", antes: antes?.descricao, depois: salvo.descricao },
+            { onde: "Ideia para a arte", antes: antes?.ideia, depois: salvo.ideia },
+            { onde: "Importante", antes: antes?.importante, depois: salvo.importante },
+            { onde: "Animado", antes: antes?.animado.obs, depois: salvo.animado.obs },
+          ],
+          equipe,
+          usuario,
+          evento,
+          "material",
+        ),
+        ...avisoDeTarefa(salvo.responsavel_id, antes?.responsavel_id, usuario, evento, "material", "Levar a arte para a produção", salvo.prazo),
+      ]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
     } finally {
@@ -73,6 +104,23 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
       setM(novo);
       setAviso(valor ? "Marcado como em produção." : "Voltou para em aberto.");
       onMudou(novo);
+      if (valor) {
+        // Avisa a Gestão e quem é responsável pela arte.
+        const para = new Set([...equipe.filter((x) => x.papel === "gestao").map((x) => x.id), m.responsavel_id ?? ""]);
+        para.delete(usuario.id);
+        para.delete("");
+        const lista: AvisoNovo[] = [...para].map((id) => ({
+          para_id: id,
+          de_nome: usuario.nome,
+          tipo: "producao",
+          titulo: `Arte em produção · ${evento.nome}`,
+          texto: `${usuario.nome} colocou a arte em produção.`,
+          evento_id: evento.id,
+          evento_data: evento.data,
+          abrir: "material",
+        }));
+        await enviarAvisos(lista);
+      }
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível marcar.");
     } finally {
@@ -195,6 +243,30 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           </button>
         </div>
 
+        <div className="responsavel-linha">
+          {leitura ? (
+            <p>
+              <span className="rotulo">Responsável pela arte</span>
+              {nomeDe(equipe, m.responsavel_id) ? `@${nomeDe(equipe, m.responsavel_id)}` : "—"}
+              {m.prazo && <> · ir para produção até {dataPorExtenso(m.prazo)}</>}
+            </p>
+          ) : (
+            <>
+              <label>
+                Responsável pela arte
+                <select id="mat-responsavel" value={m.responsavel_id ?? ""} onChange={(e) => set("responsavel_id", e.target.value || undefined)}>
+                  <option value="">—</option>
+                  {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.funcao && x.funcao !== x.nome ? ` (${x.funcao})` : ""}</option>)}
+                </select>
+              </label>
+              <label>
+                Ir para produção até
+                <input id="mat-prazo" type="date" value={m.prazo ?? ""} onChange={(e) => set("prazo", e.target.value || undefined)} />
+              </label>
+            </>
+          )}
+        </div>
+
         <section className="do-evento">
           <h4>Do evento</h4>
           <dl>
@@ -211,11 +283,15 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
         <div className="campos">
           <label className="inteiro">
             Breve descrição do evento
-            <textarea id="mat-descricao" readOnly={leitura} rows={3} value={m.descricao ?? ""} onChange={(e) => set("descricao", e.target.value)} placeholder={leitura ? "" : "Ex.: outra arte da label Original Funk Hits, anos 2010 a 2020"} />
+            {leitura ? <div className="texto-lido"><TextoComMencoes texto={m.descricao} /></div> : (
+              <CampoTexto id="mat-descricao" rows={3} value={m.descricao ?? ""} onChange={(v) => set("descricao", v)} placeholder="Ex.: outra arte da label Original Funk Hits. Use @ para chamar alguém." />
+            )}
           </label>
           <label className="inteiro">
             Ideia para a arte (fundo e elementos)
-            <textarea id="mat-ideia" readOnly={leitura} rows={4} value={m.ideia ?? ""} onChange={(e) => set("ideia", e.target.value)} placeholder={leitura ? "" : "Ex.: 3 artistas em destaque, cenário de favela ao fundo, destacar o open bar"} />
+            {leitura ? <div className="texto-lido"><TextoComMencoes texto={m.ideia} /></div> : (
+              <CampoTexto id="mat-ideia" rows={4} value={m.ideia ?? ""} onChange={(v) => set("ideia", v)} placeholder="Ex.: 3 artistas em destaque, cenário de favela ao fundo, destacar o open bar" />
+            )}
           </label>
           <fieldset className="inteiro">
             <legend>Links com fotos / press kit dos artistas</legend>
@@ -253,7 +329,9 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           </label>
           <label className="inteiro">
             Informação extra / importante
-            <textarea id="mat-importante" readOnly={leitura} rows={2} value={m.importante ?? ""} onChange={(e) => set("importante", e.target.value)} />
+            {leitura ? <div className="texto-lido"><TextoComMencoes texto={m.importante} /></div> : (
+              <CampoTexto id="mat-importante" rows={2} value={m.importante ?? ""} onChange={(v) => set("importante", v)} />
+            )}
           </label>
 
           <fieldset className="inteiro">
@@ -321,7 +399,9 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
               </div>
               <label className="inteiro">
                 Observação
-                <textarea id="mat-anim-obs" rows={2} readOnly={leitura} value={an.obs ?? ""} onChange={(e) => setAnimado({ obs: e.target.value })} />
+                {leitura ? <div className="texto-lido"><TextoComMencoes texto={an.obs} /></div> : (
+                  <CampoTexto id="mat-anim-obs" rows={2} value={an.obs ?? ""} onChange={(v) => setAnimado({ obs: v })} />
+                )}
               </label>
             </div>
           </fieldset>

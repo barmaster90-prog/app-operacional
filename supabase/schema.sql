@@ -31,8 +31,10 @@ alter table public.financeiro add column if not exists impulso_valor numeric;
 create table if not exists public.perfis (
   id uuid primary key references auth.users (id) on delete cascade,
   nome text,
-  papel text not null default 'producao' check (papel in ('gestao', 'producao'))
+  papel text not null default 'producao' check (papel in ('gestao', 'producao')),
+  funcao text -- Marketing, Agência, Audiovisual…: usado nas menções, não muda o acesso
 );
+alter table public.perfis add column if not exists funcao text;
 
 create or replace function public.criar_perfil() returns trigger
   language plpgsql security definer set search_path = public as $$
@@ -76,7 +78,37 @@ create table if not exists public.materiais (
   em_producao_em timestamptz
 );
 
+alter table public.materiais add column if not exists responsavel_id uuid references public.perfis (id) on delete set null;
+alter table public.materiais add column if not exists prazo date;
 alter table public.materiais add column if not exists animado jsonb not null default '{"links": []}'::jsonb;
+
+-- Conversa de cada evento (com menções @).
+create table if not exists public.comentarios (
+  id uuid primary key default gen_random_uuid(),
+  evento_id uuid not null references public.eventos (id) on delete cascade,
+  autor_id uuid not null default auth.uid() references public.perfis (id) on delete cascade,
+  autor_nome text not null,
+  texto text not null,
+  criado_em timestamptz not null default now()
+);
+create index if not exists comentarios_evento_idx on public.comentarios (evento_id);
+
+-- Avisos de cada pessoa: menções, tarefas novas, cobranças e "arte em produção".
+create table if not exists public.avisos (
+  id uuid primary key default gen_random_uuid(),
+  para_id uuid not null references public.perfis (id) on delete cascade,
+  de_id uuid default auth.uid() references public.perfis (id) on delete set null,
+  de_nome text,
+  tipo text not null check (tipo in ('mencao', 'tarefa', 'cobranca', 'producao')),
+  titulo text not null,
+  texto text,
+  evento_id uuid references public.eventos (id) on delete cascade,
+  evento_data date,
+  abrir text,
+  criado_em timestamptz not null default now(),
+  lido boolean not null default false
+);
+create index if not exists avisos_para_idx on public.avisos (para_id, criado_em desc);
 
 -- Divulgação do evento: legenda, postagens, impulsionamento e audiovisual.
 create table if not exists public.divulgacoes (
@@ -108,6 +140,8 @@ alter table public.perfis enable row level security;
 alter table public.datas_especiais enable row level security;
 alter table public.materiais enable row level security;
 alter table public.divulgacoes enable row level security;
+alter table public.comentarios enable row level security;
+alter table public.avisos enable row level security;
 
 drop policy if exists "equipe acessa eventos" on public.eventos;
 drop policy if exists "equipe acessa datas" on public.datas_especiais;
@@ -147,6 +181,21 @@ create policy "equipe lê divulgação" on public.divulgacoes for select to auth
 drop policy if exists "gestão grava divulgação" on public.divulgacoes;
 create policy "gestão grava divulgação" on public.divulgacoes for all to authenticated
   using (public.e_gestao()) with check (public.e_gestao());
+
+drop policy if exists "equipe lê conversa" on public.comentarios;
+create policy "equipe lê conversa" on public.comentarios for select to authenticated using (true);
+drop policy if exists "cada um escreve como si" on public.comentarios;
+create policy "cada um escreve como si" on public.comentarios for insert to authenticated
+  with check (autor_id = auth.uid());
+
+drop policy if exists "cada um vê seus avisos" on public.avisos;
+create policy "cada um vê seus avisos" on public.avisos for select to authenticated using (para_id = auth.uid());
+drop policy if exists "cada um marca seus avisos" on public.avisos;
+create policy "cada um marca seus avisos" on public.avisos for update to authenticated
+  using (para_id = auth.uid()) with check (para_id = auth.uid());
+drop policy if exists "equipe manda avisos" on public.avisos;
+create policy "equipe manda avisos" on public.avisos for insert to authenticated
+  with check (de_id = auth.uid());
 
 -- A Produção marca postagens e vídeos como feitos, sem poder mudar o resto.
 create or replace function public.marcar_feito(p_evento uuid, p_lista text, p_item text, p_valor boolean) returns void

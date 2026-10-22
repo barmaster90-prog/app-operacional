@@ -8,6 +8,7 @@ export interface Postagem {
   data?: DataISO;
   rede: string;
   formato: string;
+  responsavel_id?: string;
   feito: boolean;
 }
 
@@ -15,6 +16,8 @@ export interface Postagem {
 export interface Video {
   id: string;
   titulo: string;
+  responsavel_id?: string;
+  /** Texto livre de antes da equipe existir; vale quando não há responsavel_id. */
   responsavel?: string;
   prazo?: DataISO;
   roteiro?: string;

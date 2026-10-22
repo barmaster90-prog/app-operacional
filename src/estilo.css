@@ -182,7 +182,7 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .chip .sinal { margin-right: 5px; vertical-align: 1px; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
 .cartao .arte { display: inline-flex; align-items: center; gap: 5px; color: var(--texto-2); font-size: 12px; }
 
-.secoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.secoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .secao { display: grid !important; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; text-align: left; padding: 12px 14px !important; }
 .secao .sinal { grid-row: 1 / 3; }
 .secao small { grid-column: 2; color: var(--texto-2); }
@@ -227,8 +227,8 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 }
 
 /* Perfis */
-.selo.papel.gestao { background: #2c4a33; color: #b9f0c6; }
-.selo.papel.producao { background: #4a3a20; color: #f3d9a4; }
+.selo.papel-gestao { background: #2c4a33; color: #b9f0c6; }
+.selo.papel-producao { background: #4a3a20; color: #f3d9a4; }
 .ficha { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0 0 16px; }
 .ficha dt { color: var(--texto-2); font-size: 13px; }
 .ficha dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
@@ -245,7 +245,7 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .bloco .campos { margin-top: 4px; }
 .link-externo { color: var(--destaque); overflow-wrap: anywhere; }
 .itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.postagem { display: grid; grid-template-columns: 110px 150px 1fr 1fr auto; gap: 8px; align-items: center; }
+.postagem { display: grid; grid-template-columns: 100px 150px 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
 .postagem:has(.resumo-item) { grid-template-columns: 110px 1fr; }
 .check { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 8px; color: var(--texto) !important; cursor: pointer; }
 .check input { width: auto; margin: 0; }
@@ -264,3 +264,136 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .animado .campos { margin: 0; }
 .rotulo { display: block; font-size: 13px; color: var(--texto-2); margin-bottom: 6px; }
 .link-simples { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+
+/* Menções */
+.campo-mencao { position: relative; display: block; }
+.sugestoes { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; display: flex; flex-direction: column; background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
+.sugestoes button { display: flex !important; align-items: center; gap: 10px; min-height: 44px; border: 0 !important; border-radius: 0 !important; background: transparent !important; text-align: left; }
+.sugestoes button.marcada, .sugestoes button:hover { background: var(--superficie-2) !important; }
+.sugestoes small { margin-left: auto; color: var(--texto-2); }
+.avatar { width: 28px; height: 28px; flex: none; border-radius: 99px; background: #3d3360; color: #cfc6ff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.mencao { color: #b3a8ff; font-weight: 600; }
+.sem-resp { color: var(--texto-2); font-style: italic; }
+.texto-mencoes { white-space: pre-wrap; }
+.vazio-texto { color: var(--texto-2); font-style: italic; }
+
+/* Conversa */
+.modal.conversa { max-width: 560px; display: flex; flex-direction: column; }
+.mensagens { display: flex; flex-direction: column; gap: 8px; min-height: 160px; max-height: 50vh; overflow-y: auto; margin-bottom: 12px; }
+.mensagem { background: var(--superficie-2); border-radius: 12px; padding: 8px 12px; max-width: 88%; align-self: flex-start; }
+.mensagem.minha { align-self: flex-end; background: #2f2850; }
+.mensagem small { color: var(--texto-2); font-size: 12px; }
+.mensagem p { margin: 3px 0 0; }
+.escrever { display: flex; gap: 8px; align-items: flex-start; }
+.escrever .campo-mencao { flex: 1; }
+.escrever .sugestoes { top: auto; bottom: calc(100% + 4px); }
+
+/* Topo: sino e telas */
+.sino { position: relative; width: 40px; height: 40px; padding: 0 !important; display: grid; place-items: center; }
+.contador { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--perigo); color: #fff; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.sino .contador { position: absolute; top: -6px; right: -6px; }
+.usuario select.trocar { width: auto; max-width: 150px; padding: 6px 8px; }
+.visoes { display: flex; gap: 6px; margin-top: 12px; }
+.visoes button { display: inline-flex; align-items: center; gap: 6px; background: transparent !important; border-color: transparent !important; color: var(--texto-2); }
+.visoes button.ativa { background: var(--superficie-2) !important; border-color: var(--borda) !important; color: var(--texto); font-weight: 600; }
+.recado { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; background: #14281d; border: 1px solid #24603f; color: #b9f0c6; padding: 10px 16px; border-radius: 10px; margin: 0; max-width: calc(100vw - 32px); }
+
+/* Painel de avisos */
+.fundo-avisos { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.45); display: flex; justify-content: flex-end; }
+.avisos { width: 400px; max-width: 100%; height: 100%; background: var(--fundo); border-left: 1px solid var(--borda); display: flex; flex-direction: column; }
+.avisos-topo { display: flex; align-items: center; gap: 8px; padding: 16px 16px 10px; }
+.avisos-topo h3 { margin: 0; flex: 1; font-size: 20px; }
+.filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.filtros button { border-radius: 99px !important; padding: 6px 12px !important; background: transparent !important; color: var(--texto-2); display: inline-flex; align-items: center; gap: 6px; }
+.filtros button.ativo { border-color: var(--destaque) !important; background: var(--superficie-2) !important; color: var(--texto); }
+.avisos .filtros { padding: 0 16px 12px; }
+.avisos-lista { flex: 1; overflow-y: auto; }
+.avisos-lista > .vazio { padding: 16px; }
+.avisos .aviso { width: 100%; display: flex; gap: 12px; text-align: left; padding: 14px 16px !important; border: 0 !important; border-top: 1px solid var(--superficie-2) !important; border-radius: 0 !important; background: transparent !important; }
+.avisos .aviso.novo { background: var(--superficie) !important; }
+.avisos .aviso:hover { background: var(--superficie-2) !important; }
+.icone { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--fundo); background: var(--texto-2); }
+.icone.mencao { background: #b3a8ff; }
+.icone.cobranca { background: #ff8a8d; }
+.icone.tarefa { background: #f5c451; }
+.icone.producao { background: #3ccf7a; }
+.corpo-aviso { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.corpo-aviso span { color: #dcd8e6; font-size: 13px; }
+.corpo-aviso small { color: var(--texto-2); font-size: 12px; }
+.rodape-avisos { margin: 12px 16px 16px; padding: 10px 12px; border-radius: 10px; background: var(--superficie); border: 1px solid var(--borda); color: var(--texto-2); font-size: 13px; }
+
+/* Pendências e semana do marketing */
+section.pendencias, section.semana { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.titulo-visao { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.titulo-visao h2 { margin: 0; font-size: 22px; }
+.titulo-visao p { margin: 2px 0 0; color: var(--texto-2); }
+.titulo-visao > div:first-child { flex: 1; min-width: 200px; }
+.numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.numero { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; }
+.numero strong { font-size: 28px; }
+.numero span { color: var(--texto-2); font-size: 13px; }
+.numero.atrasada { background: #2a1719; border-color: #6b2a2d; }
+.numero.atrasada strong { color: #ff8a8d; }
+.numero.semana { background: #2b2410; border-color: #6b5520; }
+.numero.semana strong { color: #f5c451; }
+.bloco-pendencias { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; }
+.bloco-pendencias h3 { margin: 0; padding: 12px 16px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--borda); color: var(--texto-2); }
+.bloco-pendencias.atrasada h3 { color: #ff8a8d; }
+.bloco-pendencias.semana h3 { color: #f5c451; }
+.bloco-pendencias > .vazio { padding: 12px 16px; }
+.bloco-pendencias ul { list-style: none; margin: 0; padding: 0; }
+.tarefa { display: grid; grid-template-columns: 12px minmax(0, 2.4fr) 110px 150px auto; gap: 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--superficie-2); }
+.tarefa:last-child { border-bottom: 0; }
+.oque { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.oque span { color: var(--texto-2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etiqueta { font-style: normal; color: #fff; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 5px; }
+.tarefa .prazo { color: var(--texto-2); }
+.atrasada .prazo { color: #ff8a8d; }
+.acoes { display: flex; gap: 6px; justify-content: flex-end; }
+.acoes button { padding: 6px 12px !important; }
+.sinal-tarefa { display: inline-block; width: 10px; height: 10px; border-radius: 99px; flex: none; background: var(--texto-2); }
+.sinal-tarefa.atrasada { background: var(--perigo); }
+.sinal-tarefa.semana { background: var(--feriado); }
+.sinal-tarefa.feito { background: #3ccf7a; }
+.sinal-tarefa.sem_prazo { background: var(--texto-2); }
+
+.nav-semana { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px; }
+.nav-semana h2 { font-size: 20px; }
+.legenda-semana { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--texto-2); font-size: 13px; }
+.legenda-semana span { display: inline-flex; align-items: center; gap: 6px; }
+.tracejado { display: inline-block; width: 14px; height: 10px; border: 1px dashed var(--texto-2); border-radius: 3px; }
+.dias-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.dia-semana { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 160px; }
+.dia-semana.hoje { border-color: var(--destaque); }
+.cab-dia { display: flex; align-items: baseline; gap: 6px; }
+.cab-dia span { color: var(--texto-2); }
+.evento-noite { text-align: left; font-size: 12px; padding: 5px 8px !important; background: transparent !important; border: 1px dashed !important; border-radius: 8px !important; color: #dcd8e6; overflow: hidden; text-overflow: ellipsis; }
+.card-tarefa { text-align: left; display: flex !important; flex-direction: column; gap: 3px; padding: 7px 9px !important; border-left: 4px solid !important; font-size: 12px; min-width: 0; }
+.card-tarefa .linha-card { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.card-tarefa .linha-card .sinal-tarefa { width: 8px; height: 8px; }
+.card-tarefa > span:not(.linha-card) { color: #dcd8e6; overflow: hidden; text-overflow: ellipsis; }
+.nada { color: var(--borda); }
+.dica { margin: 0; color: var(--texto-2); font-size: 13px; }
+
+/* Equipe e responsável */
+.equipe-lista { display: flex; flex-direction: column; gap: 10px; }
+.membro { display: grid; grid-template-columns: 1.3fr 1.3fr 1fr; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--borda); }
+.membro small { color: #b3a8ff; }
+
+@media (max-width: 900px) {
+  .tarefa { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .tarefa .prazo { grid-column: 2; grid-row: 2; font-size: 13px; }
+  .tarefa .mencao, .tarefa .sem-resp { grid-column: 2; grid-row: 3; font-size: 13px; }
+  .tarefa .acoes { grid-column: 3; grid-row: 1 / 4; flex-direction: column; }
+  .dias-semana { grid-template-columns: 1fr; }
+  .dia-semana { min-height: 0; }
+}
+@media (max-width: 640px) {
+  .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .membro { grid-template-columns: 1fr 1fr; }
+  .membro label:first-child { grid-column: 1 / -1; }
+  .visoes { overflow-x: auto; }
+  .usuario select.trocar { max-width: 120px; }
+  .nav-semana h2 { font-size: 17px; }
+  .nav-semana { min-width: 0; }
+}

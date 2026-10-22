@@ -5,6 +5,8 @@ import type { DataISO } from "./datas.ts";
 import { EVENTOS_EXEMPLO } from "./exemplo.ts";
 import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
 import { divulgacaoVazia, normalizarDivulgacao, type Divulgacao, type ListaFeita } from "./divulgacao.ts";
+import { EQUIPE_EXEMPLO, type Membro } from "./equipe.ts";
+import type { Aviso, AvisoNovo, Comentario } from "./avisos.ts";
 
 /** Gestão vê e edita tudo. Produção vê a agenda e o Material e marca "em produção", sem ver valores. */
 export type Papel = "gestao" | "producao";
@@ -29,8 +31,8 @@ export function semValores(e: Evento): Evento {
 export interface Banco {
   demo: boolean;
   usuarioAtual(): Promise<Usuario | null>;
-  /** No modo demonstração, `papel` escolhe o perfil simulado. */
-  entrar(email: string, senha: string, papel?: Papel): Promise<Usuario>;
+  /** No modo demonstração, `membroId` escolhe quem da equipe está entrando. */
+  entrar(email: string, senha: string, membroId?: string): Promise<Usuario>;
   sair(): Promise<void>;
   aoMudarLogin(cb: (u: Usuario | null) => void): () => void;
   eventos(de: DataISO, ate: DataISO): Promise<Evento[]>;
@@ -49,6 +51,24 @@ export interface Banco {
   marcarFeito(eventoId: string, lista: ListaFeita, itemId: string, feito: boolean): Promise<Divulgacao>;
   enviarAnexo(eventoId: string, arquivo: File): Promise<Anexo>;
   removerAnexo(anexo: Anexo): Promise<void>;
+  /** Todo mundo que pode ser mencionado ou ser responsável. */
+  equipe(): Promise<Membro[]>;
+  /** Só a Gestão. No app real, a pessoa precisa ter login criado antes. */
+  salvarMembro(m: Membro): Promise<Membro>;
+  comentarios(eventoId: string): Promise<Comentario[]>;
+  comentar(eventoId: string, texto: string): Promise<Comentario>;
+  /** Avisos para quem está logado, do mais novo para o mais antigo. */
+  avisos(): Promise<Aviso[]>;
+  avisar(lista: AvisoNovo[]): Promise<void>;
+  marcarLidos(ids: string[]): Promise<void>;
+  /** Eventos com Material e Divulgação, para os painéis. */
+  painel(de: DataISO, ate: DataISO): Promise<DadosPainel>;
+}
+
+export interface DadosPainel {
+  eventos: Evento[];
+  materiais: Record<string, Material>;
+  divulgacoes: Record<string, Divulgacao>;
 }
 
 /** Limite por imagem no modo demonstração, que guarda tudo no navegador. */
@@ -201,6 +221,59 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { error } = await sb.storage.from("materiais").remove([anexo.caminho]);
       if (error) throw error;
     },
+    async equipe() {
+      const { data, error } = await sb.from("perfis").select("id, nome, funcao, papel").order("nome");
+      if (error) throw error;
+      return (data as Membro[]).map((m) => ({ ...m, nome: m.nome || "sem nome" }));
+    },
+    async salvarMembro(m) {
+      const { data, error } = await sb.from("perfis").update({ nome: m.nome, funcao: m.funcao ?? null, papel: m.papel }).eq("id", m.id).select().single();
+      if (error) throw error;
+      return data as Membro;
+    },
+    async comentarios(eventoId) {
+      const { data, error } = await sb.from("comentarios").select("*").eq("evento_id", eventoId).order("criado_em");
+      if (error) throw error;
+      return data as Comentario[];
+    },
+    async comentar(eventoId, texto) {
+      const eu = await this.usuarioAtual();
+      if (!eu) throw new Error("Faça login.");
+      const { data, error } = await sb.from("comentarios").insert({ evento_id: eventoId, autor_id: eu.id, autor_nome: eu.nome, texto }).select().single();
+      if (error) throw error;
+      return data as Comentario;
+    },
+    async avisos() {
+      const { data, error } = await sb.from("avisos").select("*").order("criado_em", { ascending: false }).limit(100);
+      if (error) throw error;
+      return data as Aviso[];
+    },
+    async avisar(lista) {
+      if (lista.length === 0) return;
+      const { data } = await sb.auth.getUser();
+      const { error } = await sb.from("avisos").insert(lista.map((a) => ({ ...a, de_id: data.user?.id })));
+      if (error) throw error;
+    },
+    async marcarLidos(ids) {
+      if (ids.length === 0) return;
+      const { error } = await sb.from("avisos").update({ lido: true }).in("id", ids);
+      if (error) throw error;
+    },
+    async painel(de, ate) {
+      const { data, error } = await sb.from("eventos").select("*, materiais(*), divulgacoes(*)").gte("data", de).lte("data", ate);
+      if (error) throw error;
+      const primeiro = <T,>(x: T | T[] | null) => (Array.isArray(x) ? x[0] : x) ?? undefined;
+      type Linha = Evento & { materiais: Record<string, unknown> | null; divulgacoes: Record<string, unknown> | null };
+      const res: DadosPainel = { eventos: [], materiais: {}, divulgacoes: {} };
+      for (const { materiais, divulgacoes, ...e } of data as Linha[]) {
+        const m = primeiro(materiais);
+        const d = primeiro(divulgacoes);
+        if (m) res.materiais[e.id] = normalizarMaterial(m);
+        if (d) res.divulgacoes[e.id] = normalizarDivulgacao(d);
+        res.eventos.push({ ...e, em_producao: Boolean((m as { em_producao?: boolean } | undefined)?.em_producao) });
+      }
+      return res;
+    },
   };
 }
 
@@ -213,6 +286,9 @@ function bancoDemo(): Banco {
     datas: DataEspecial[];
     materiais?: Record<string, Material>;
     divulgacoes?: Record<string, Divulgacao>;
+    equipe?: Membro[];
+    comentarios?: Comentario[];
+    avisos?: Aviso[];
   };
   const ler = (): Estado => {
     try {
@@ -224,8 +300,12 @@ function bancoDemo(): Banco {
     return { usuario: null, eventos: EVENTOS_EXEMPLO, datas: [] };
   };
   let estado = ler();
-  // Quem já tinha entrado antes dos perfis continua como Gestão.
-  if (estado.usuario && !estado.usuario.papel) estado.usuario.papel = "gestao";
+  if (!estado.equipe?.length) estado.equipe = EQUIPE_EXEMPLO;
+  // Quem entrou antes da equipe existir vira o membro equivalente ao perfil que tinha.
+  if (estado.usuario && !estado.equipe.some((m) => m.id === estado.usuario!.id)) {
+    const m = estado.equipe.find((x) => x.papel === (estado.usuario!.papel ?? "gestao")) ?? estado.equipe[0];
+    estado.usuario = { ...estado.usuario, id: m.id, nome: m.nome, papel: m.papel };
+  }
   // A Praça deixou de ser local do Don e virou casa própria.
   estado.eventos = estado.eventos.map((e) =>
     e.local === "Praça" || (["ex6", "ex33"].includes(e.id) && e.casas.join() === "don")
@@ -247,9 +327,9 @@ function bancoDemo(): Banco {
     async usuarioAtual() {
       return estado.usuario;
     },
-    async entrar(email, _senha, papel = "gestao") {
-      if (!email.includes("@")) throw new Error("Digite um e-mail válido.");
-      estado.usuario = { id: "demo", email, nome: email.split("@")[0], papel };
+    async entrar(email, _senha, membroId) {
+      const m = estado.equipe!.find((x) => x.id === membroId) ?? estado.equipe![0];
+      estado.usuario = { id: m.id, email: email || `${m.id}@demo`, nome: m.nome, papel: m.papel };
       gravar();
       ouvintes.forEach((cb) => cb(estado.usuario));
       return estado.usuario;
@@ -342,6 +422,54 @@ function bancoDemo(): Banco {
     },
     async removerAnexo() {
       /* no modo demonstração a imagem some junto com o material */
+    },
+    async equipe() {
+      return estado.equipe!;
+    },
+    async salvarMembro(m) {
+      const novo = { ...m, id: m.id || novoId() };
+      estado.equipe = estado.equipe!.some((x) => x.id === novo.id)
+        ? estado.equipe!.map((x) => (x.id === novo.id ? novo : x))
+        : [...estado.equipe!, novo];
+      if (estado.usuario?.id === novo.id) {
+        estado.usuario = { ...estado.usuario, nome: novo.nome, papel: novo.papel };
+        ouvintes.forEach((cb) => cb(estado.usuario));
+      }
+      gravar();
+      return novo;
+    },
+    async comentarios(eventoId) {
+      return (estado.comentarios ?? []).filter((c) => c.evento_id === eventoId);
+    },
+    async comentar(eventoId, texto) {
+      const eu = estado.usuario!;
+      const c: Comentario = { id: novoId(), evento_id: eventoId, autor_id: eu.id, autor_nome: eu.nome, texto, criado_em: new Date().toISOString() };
+      estado.comentarios = [...(estado.comentarios ?? []), c];
+      gravar();
+      return c;
+    },
+    async avisos() {
+      return (estado.avisos ?? []).filter((a) => a.para_id === estado.usuario?.id).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+    },
+    async avisar(lista) {
+      const agora = new Date().toISOString();
+      estado.avisos = [...(estado.avisos ?? []), ...lista.map((a) => ({ ...a, id: novoId(), criado_em: agora, lido: false }))];
+      gravar();
+    },
+    async marcarLidos(ids) {
+      estado.avisos = (estado.avisos ?? []).map((a) => (ids.includes(a.id) ? { ...a, lido: true } : a));
+      gravar();
+    },
+    async painel(de, ate) {
+      const eventos = await this.eventos(de, ate);
+      const res: DadosPainel = { eventos, materiais: {}, divulgacoes: {} };
+      for (const e of eventos) {
+        const m = estado.materiais?.[e.id];
+        const d = estado.divulgacoes?.[e.id];
+        if (m) res.materiais[e.id] = normalizarMaterial(m as unknown as Record<string, unknown>);
+        if (d) res.divulgacoes[e.id] = normalizarDivulgacao(d as unknown as Record<string, unknown>);
+      }
+      return res;
     },
   };
 }

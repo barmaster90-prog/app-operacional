@@ -1,13 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { banco, ehGestao, NOME_PAPEL, type Usuario } from "../lib/banco.ts";
+import { banco, ehGestao, NOME_PAPEL, type DadosPainel, type Usuario } from "../lib/banco.ts";
 import { ABAS, CASAS, casa, eventoDaAba, type AbaId, type Evento } from "../lib/tipos.ts";
-import { DIAS_SEMANA_CURTO, MESES, gradeDoMes, hojeISO, partes, type DataISO } from "../lib/datas.ts";
+import { DIAS_SEMANA_CURTO, MESES, gradeDoMes, hojeISO, partes, somarDias, type DataISO } from "../lib/datas.ts";
 import { datasFixasDoAno, type DataEspecial } from "../lib/feriados.ts";
 import { PainelDia } from "./PainelDia.tsx";
 import { FormEvento } from "./FormEvento.tsx";
 import { FichaEvento } from "./FichaEvento.tsx";
+import { EquipeContexto, GerenciarEquipe } from "./Equipe.tsx";
+import { Avisos } from "./Avisos.tsx";
+import { Pendencias } from "./Pendencias.tsx";
+import { SemanaMarketing } from "./SemanaMarketing.tsx";
+import type { Membro } from "../lib/equipe.ts";
+import type { Aviso, Destino } from "../lib/avisos.ts";
+import { montarTarefas, situacao, type Tarefa } from "../lib/tarefas.ts";
 
 const CHAVE_ABA = "app-operacional-aba";
+const CHAVE_VISAO = "app-operacional-visao";
+
+type Visao = "agenda" | "pendencias" | "marketing";
+const VISOES: { id: Visao; nome: string }[] = [
+  { id: "agenda", nome: "Agenda" },
+  { id: "pendencias", nome: "Pendências" },
+  { id: "marketing", nome: "Marketing" },
+];
+
+function lerVisao(): Visao {
+  try {
+    const v = localStorage.getItem(CHAVE_VISAO) as Visao | null;
+    if (v && VISOES.some((x) => x.id === v)) return v;
+  } catch {
+    /* sem armazenamento */
+  }
+  return "agenda";
+}
 
 function lerAba(): AbaId {
   try {
@@ -35,6 +60,14 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
   const [diaAberto, setDiaAberto] = useState<DataISO | null>(null);
   const [editando, setEditando] = useState<Partial<Evento> | null>(null);
   const [erro, setErro] = useState("");
+  const [visao, setVisao] = useState<Visao>(lerVisao);
+  const [equipe, setEquipe] = useState<Membro[]>([]);
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [dados, setDados] = useState<DadosPainel | null>(null);
+  const [verAvisos, setVerAvisos] = useState(false);
+  const [verEquipe, setVerEquipe] = useState(false);
+  const [destino, setDestino] = useState<Destino | undefined>();
+  const [recado, setRecado] = useState("");
 
   const grade = useMemo(() => gradeDoMes(ano, mes), [ano, mes]);
   const de = grade[0];
@@ -52,9 +85,87 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
     // Recarrega ao trocar de perfil: o que cada um pode ver muda.
   }, [de, ate, usuario.papel]);
 
+  // Equipe, avisos e o que os painéis precisam (30 dias para trás, 90 para frente).
+  const carregarExtras = useCallback(async () => {
+    const [eq, av, dp] = await Promise.allSettled([banco.equipe(), banco.avisos(), banco.painel(somarDias(hoje, -30), somarDias(hoje, 90))]);
+    if (eq.status === "fulfilled") setEquipe(eq.value);
+    if (av.status === "fulfilled") setAvisos(av.value);
+    if (dp.status === "fulfilled") setDados(dp.value);
+  }, [hoje, usuario.id]);
+
+  const recarregarTudo = useCallback(async () => {
+    await Promise.all([carregar(), carregarExtras()]);
+  }, [carregar, carregarExtras]);
+
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useEffect(() => {
+    carregarExtras();
+    const t = setInterval(() => banco.avisos().then(setAvisos).catch(() => {}), 60_000);
+    return () => clearInterval(t);
+  }, [carregarExtras]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_VISAO, visao);
+    } catch {
+      /* sem armazenamento */
+    }
+  }, [visao]);
+
+  useEffect(() => {
+    if (!recado) return;
+    const t = setTimeout(() => setRecado(""), 4000);
+    return () => clearTimeout(t);
+  }, [recado]);
+
+  const minhas = useMemo(() => {
+    if (!dados) return [];
+    return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes).filter(
+      (t) => t.responsavel_id === usuario.id && ["atrasada", "semana"].includes(situacao(t, hoje)),
+    );
+  }, [dados, usuario.id, hoje]);
+  const naoLidos = avisos.filter((a) => !a.lido).length;
+  const atrasadasMinhas = minhas.filter((t) => situacao(t, hoje) === "atrasada").length;
+
+  async function abrirEvento(eventoId: string, data: string | undefined, onde: Destino) {
+    setVerAvisos(false);
+    const lista = data ? await banco.eventos(data, data) : (dados?.eventos ?? []);
+    const e = lista.find((x) => x.id === eventoId);
+    if (!e) return setRecado("Esse evento não existe mais.");
+    setDestino(onde === "evento" ? undefined : onde);
+    setEditando(e);
+  }
+
+  async function marcarLidos(ids: string[]) {
+    setAvisos((lista) => lista.map((a) => (ids.includes(a.id) ? { ...a, lido: true } : a)));
+    await banco.marcarLidos(ids).catch(() => {});
+  }
+
+  async function cobrar(t: Tarefa) {
+    if (!t.responsavel_id) return;
+    const prazo = t.prazo ? ` Prazo: ${t.prazo.split("-").reverse().slice(0, 2).join("/")}.` : "";
+    await banco.avisar([
+      {
+        para_id: t.responsavel_id,
+        de_nome: usuario.nome,
+        tipo: "cobranca",
+        titulo: `${usuario.nome} cobrou: ${t.titulo}`,
+        texto: `${t.evento.nome}.${prazo}`,
+        evento_id: t.evento.id,
+        evento_data: t.evento.data,
+        abrir: t.tipo === "arte" ? "material" : "divulgacao",
+      },
+    ]);
+    setRecado(`Cobrança enviada para @${equipe.find((m) => m.id === t.responsavel_id)?.nome ?? "responsável"}.`);
+  }
+
+  function fecharEvento() {
+    setEditando(null);
+    setDestino(undefined);
+  }
 
   useEffect(() => {
     try {
@@ -98,6 +209,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
   }
 
   return (
+    <EquipeContexto.Provider value={equipe}>
     <div className="agenda">
       <header className="topo">
         <div className="marca">
@@ -105,17 +217,46 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
           {banco.demo && <span className="selo">demonstração</span>}
         </div>
         <div className="usuario">
-          <span>{usuario.nome}</span>
-          <span className={`selo papel ${usuario.papel}`}>{NOME_PAPEL[usuario.papel]}</span>
-          {banco.demo && (
-            <button className="link" onClick={() => banco.entrar(usuario.email, "", ehGestao(usuario) ? "producao" : "gestao")}>
-              ver como {ehGestao(usuario) ? "Produção" : "Gestão"}
-            </button>
+          <button
+            type="button"
+            className="sino"
+            aria-label={`Avisos: ${naoLidos} novos, ${atrasadasMinhas} tarefas atrasadas`}
+            onClick={() => setVerAvisos(true)}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+            {naoLidos + atrasadasMinhas > 0 && <span className="contador">{naoLidos + atrasadasMinhas}</span>}
+          </button>
+          {banco.demo ? (
+            <select aria-label="Entrar como" className="trocar" value={usuario.id} onChange={(e) => banco.entrar("", "", e.target.value)}>
+              {equipe.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+            </select>
+          ) : (
+            <span>{usuario.nome}</span>
           )}
+          <span className={`selo papel-${usuario.papel}`}>{NOME_PAPEL[usuario.papel]}</span>
+          {ehGestao(usuario) && <button className="link" onClick={() => setVerEquipe(true)}>Equipe</button>}
           <button className="link" onClick={() => banco.sair()}>Sair</button>
         </div>
       </header>
 
+      <nav className="visoes" aria-label="Telas">
+        {VISOES.map((v) => (
+          <button key={v.id} type="button" className={v.id === visao ? "ativa" : ""} aria-current={v.id === visao ? "page" : undefined} onClick={() => setVisao(v.id)}>
+            {v.nome}
+            {v.id === "pendencias" && atrasadasMinhas > 0 && <span className="contador">{atrasadasMinhas}</span>}
+          </button>
+        ))}
+      </nav>
+
+      {recado && <p className="recado" role="status">{recado}</p>}
+
+      {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} />}
+      {visao === "marketing" && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} />}
+
+      {visao === "agenda" && (<>
       <nav className="abas" aria-label="Casas">
         {ABAS.map((a) => (
           <button key={a.id} className={a.id === aba ? "ativa" : ""} onClick={() => setAba(a.id)}>
@@ -195,14 +336,16 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
           />
         )}
       </div>
+      </>)}
 
       {editando && !ehGestao(usuario) && editando.id && (
         <FichaEvento
           evento={editando as Evento}
           usuario={usuario}
           datasExtras={datasCadastradas}
-          onMudou={carregar}
-          onFechar={() => setEditando(null)}
+          abrir={destino}
+          onMudou={recarregarTudo}
+          onFechar={fecharEvento}
         />
       )}
 
@@ -211,14 +354,21 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
           inicial={editando}
           usuario={usuario}
           datasExtras={datasCadastradas}
-          onMudou={carregar}
-          onFechar={() => setEditando(null)}
+          abrir={destino}
+          onMudou={recarregarTudo}
+          onFechar={fecharEvento}
           onSalvo={async () => {
-            setEditando(null);
-            await carregar();
+            fecharEvento();
+            await recarregarTudo();
           }}
         />
       )}
+
+      {verAvisos && (
+        <Avisos avisos={avisos} minhas={minhas} onAbrir={abrirEvento} onLidos={marcarLidos} onFechar={() => setVerAvisos(false)} />
+      )}
+      {verEquipe && <GerenciarEquipe onFechar={() => setVerEquipe(false)} onMudou={carregarExtras} />}
     </div>
+    </EquipeContexto.Provider>
   );
 }

@@ -38,3 +38,19 @@ test("resumo da divulgação", async () => {
     "1/2 postagens · 0/1 vídeos",
   );
 });
+
+test("situação das tarefas", async () => {
+  const { montarTarefas, situacao } = await import("./tarefas.ts");
+  const ev = { id: "e", data: "2026-11-01", casas: ["downtown" as const], nome: "X", status: "Confirmado" as const, atracoes: [] };
+  const tarefas = montarTarefas([ev], {}, {
+    e: {
+      evento_id: "e", impulsionar: false, videos: [],
+      postagens: [
+        { id: "a", data: "2026-10-20", rede: "Instagram", formato: "Feed", feito: false },
+        { id: "b", data: "2026-10-25", rede: "Instagram", formato: "Story", feito: false },
+        { id: "c", data: "2026-10-20", rede: "Instagram", formato: "Reels", feito: true },
+      ],
+    },
+  });
+  assert.deepEqual(tarefas.map((t) => situacao(t, "2026-10-22")), ["sem_prazo", "atrasada", "semana", "feito"]);
+});

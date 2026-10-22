@@ -5,6 +5,8 @@ import { dataPorExtenso } from "../lib/datas.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { MaterialEvento } from "./MaterialEvento.tsx";
 import { DivulgacaoEvento } from "./DivulgacaoEvento.tsx";
+import { ConversaEvento } from "./ConversaEvento.tsx";
+import type { Destino } from "../lib/avisos.ts";
 import { resumoDivulgacao } from "../lib/divulgacao.ts";
 
 interface Props {
@@ -15,6 +17,8 @@ interface Props {
   onSalvo(): void;
   /** Avisa que algo mudou sem fechar a ficha (ex.: o Material). */
   onMudou(): void;
+  /** Abre direto uma parte do evento (vindo de um aviso ou do painel). */
+  abrir?: Destino;
 }
 
 function lerReais(texto: string): number | null {
@@ -23,7 +27,7 @@ function lerReais(texto: string): number | null {
   return limpo && Number.isFinite(n) ? n : null;
 }
 
-export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, onMudou }: Props) {
+export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, onMudou, abrir }: Props) {
   const [ev, setEv] = useState<Partial<Evento>>({ atracoes: [], casas: ["downtown"], status: "Ideia", ...inicial });
   const [atracoes, setAtracoes] = useState<{ nome: string; cache: string; obs: string }[]>(
     (inicial.atracoes ?? []).map((a) => ({ nome: a.nome, cache: a.cache != null ? String(a.cache) : "", obs: a.obs ?? "" })),
@@ -31,13 +35,16 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [confirmarApagar, setConfirmarApagar] = useState(false);
-  const [abrirMaterial, setAbrirMaterial] = useState(false);
-  const [abrirDivulgacao, setAbrirDivulgacao] = useState(false);
+  const [abrirMaterial, setAbrirMaterial] = useState(abrir === "material");
+  const [abrirDivulgacao, setAbrirDivulgacao] = useState(abrir === "divulgacao");
+  const [abrirConversa, setAbrirConversa] = useState(abrir === "conversa");
+  const [mensagens, setMensagens] = useState<number | null>(null);
   const [resumo, setResumo] = useState("");
   const [emProducao, setEmProducao] = useState(Boolean(inicial.em_producao));
   useEffect(() => {
     if (!ev.id) return;
     banco.divulgacao(ev.id).then((d) => setResumo(resumoDivulgacao(d))).catch(() => setResumo(""));
+    banco.comentarios(ev.id).then((c) => setMensagens(c.length)).catch(() => setMensagens(null));
   }, [ev.id]);
   const editando = Boolean(ev.id);
 
@@ -199,6 +206,10 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
               <strong>Divulgação</strong>
               <small>{!ev.id ? "Salve o evento para abrir" : resumo || "Abrir"}</small>
             </button>
+            <button type="button" className="secao" disabled={!ev.id} onClick={() => setAbrirConversa(true)}>
+              <strong>Conversa</strong>
+              <small>{mensagens ? `${mensagens} mensage${mensagens > 1 ? "ns" : "m"}` : "Escrever, chamar com @"}</small>
+            </button>
           </div>
         </div>
 
@@ -216,6 +227,11 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
           <button className="primario" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>
         </div>
       </form>
+      {abrirConversa && ev.id && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConversaEvento evento={{ ...(ev as Evento), atracoes: [] }} usuario={usuario} onFechar={() => setAbrirConversa(false)} onMudou={setMensagens} />
+        </div>
+      )}
       {abrirDivulgacao && ev.id && (
         <div onClick={(e) => e.stopPropagation()}>
           <DivulgacaoEvento

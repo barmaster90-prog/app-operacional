@@ -37,6 +37,9 @@ export interface Material {
   importante?: string;
   anexos: Anexo[];
   animado: Animado;
+  /** Quem cuida de levar a arte para a produção, e até quando. */
+  responsavel_id?: string;
+  prazo?: DataISO;
   em_producao: boolean;
   em_producao_por?: string;
   em_producao_em?: string;
