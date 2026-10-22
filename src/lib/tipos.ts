@@ -1,7 +1,7 @@
 import type { DataISO } from "./datas.ts";
 
-export type CasaId = "downtown" | "downtown_2p" | "don" | "calcada_av" | "calcada_ke";
-export type AbaId = "geral" | "downtown" | "downtown2p" | "don" | "calcada";
+export type CasaId = "downtown" | "downtown_2p" | "don" | "don_2p" | "calcada_av" | "calcada_ke";
+export type AbaId = "geral" | "downtown" | "downtown2p" | "don" | "don2p" | "calcada";
 
 export interface Casa {
   id: CasaId;
@@ -18,8 +18,9 @@ export const CASAS: Casa[] = [
   { id: "downtown", nome: "Downtown", curto: "DT", aba: "downtown", cor: "#2f6fde", locais: [] },
   { id: "downtown_2p", nome: "Downtown 2 pistas", curto: "DT 2P", aba: "downtown2p", tambemEm: ["downtown", "don"], cor: "#2e9e5b", locais: [] },
   { id: "don", nome: "Don Under Pub", curto: "Don", aba: "don", cor: "#d6457a", locais: ["Pista", "Beco", "Praça"] },
-  { id: "calcada_av", nome: "Calçada Antônio da Veiga", curto: "Calç. AV", aba: "calcada", cor: "#e08a1e", locais: [] },
-  { id: "calcada_ke", nome: "Calçada Kurt Ehring", curto: "Calç. KE", aba: "calcada", cor: "#b8641a", locais: [] },
+  { id: "don_2p", nome: "Don Under Pub 2 pistas", curto: "Don 2P", aba: "don2p", tambemEm: ["don", "downtown"], cor: "#ee6a1f", locais: [] },
+  { id: "calcada_av", nome: "Calçada Antônio da Veiga", curto: "Calç. AV", aba: "calcada", cor: "#c9a227", locais: [] },
+  { id: "calcada_ke", nome: "Calçada Kurt Ehring", curto: "Calç. KE", aba: "calcada", cor: "#9c7c14", locais: [] },
 ];
 
 export const ABAS: { id: AbaId; nome: string }[] = [
@@ -27,6 +28,7 @@ export const ABAS: { id: AbaId; nome: string }[] = [
   { id: "downtown", nome: "Downtown" },
   { id: "downtown2p", nome: "Downtown 2 pistas" },
   { id: "don", nome: "Don Under Pub" },
+  { id: "don2p", nome: "Don Under Pub 2 pistas" },
   { id: "calcada", nome: "Calçada" },
 ];
 
