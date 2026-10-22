@@ -91,7 +91,7 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
                         <li key={t.chave} className="tarefa">
                           <span className={`sinal-tarefa ${sec.id}`} aria-hidden="true" />
                           <div className="oque">
-                            <strong>{t.titulo}</strong>
+                            <strong>{t.titulo}{t.detalhe && <small> · {t.detalhe}</small>}</strong>
                             <span>
                               <i className="etiqueta" style={{ background: c.cor }}>{c.curto}</i> {t.evento.nome} · {dataCurta(t.evento.data)}
                             </span>

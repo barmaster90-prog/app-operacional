@@ -178,9 +178,14 @@ create policy "gestão grava materiais" on public.materiais for all to authentic
 
 drop policy if exists "equipe lê divulgação" on public.divulgacoes;
 create policy "equipe lê divulgação" on public.divulgacoes for select to authenticated using (true);
+-- Toda a equipe programa posts e vídeos. O valor do impulsionamento fica na tabela financeiro (só Gestão).
 drop policy if exists "gestão grava divulgação" on public.divulgacoes;
-create policy "gestão grava divulgação" on public.divulgacoes for all to authenticated
-  using (public.e_gestao()) with check (public.e_gestao());
+drop policy if exists "equipe cria divulgação" on public.divulgacoes;
+create policy "equipe cria divulgação" on public.divulgacoes for insert to authenticated with check (true);
+drop policy if exists "equipe edita divulgação" on public.divulgacoes;
+create policy "equipe edita divulgação" on public.divulgacoes for update to authenticated using (true) with check (true);
+drop policy if exists "gestão apaga divulgação" on public.divulgacoes;
+create policy "gestão apaga divulgação" on public.divulgacoes for delete to authenticated using (public.e_gestao());
 
 drop policy if exists "equipe lê conversa" on public.comentarios;
 create policy "equipe lê conversa" on public.comentarios for select to authenticated using (true);

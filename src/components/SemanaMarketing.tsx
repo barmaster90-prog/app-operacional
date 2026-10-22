@@ -98,6 +98,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir }: Props) {
                         <i className={`sinal-tarefa ${s === "feito" ? "feito" : s === "atrasada" ? "atrasada" : "semana"}`} aria-hidden="true" />
                         <strong>{t.titulo}</strong>
                       </span>
+                      {t.detalhe && <span className="detalhe-card">{t.detalhe}</span>}
                       <span>{t.evento.nome}</span>
                       <span className={resp ? "mencao" : "sem-resp"}>{resp ? `@${resp}` : "sem responsável"}</span>
                     </button>

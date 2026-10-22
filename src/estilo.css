@@ -245,8 +245,6 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .bloco .campos { margin-top: 4px; }
 .link-externo { color: var(--destaque); overflow-wrap: anywhere; }
 .itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.postagem { display: grid; grid-template-columns: 100px 150px 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
-.postagem:has(.resumo-item) { grid-template-columns: 110px 1fr; }
 .check { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 8px; color: var(--texto) !important; cursor: pointer; }
 .check input { width: auto; margin: 0; }
 .feito .check span { color: #3ccf7a; }
@@ -255,10 +253,6 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .video-topo strong { flex: 1; }
 .video .ficha { margin: 0; }
 .roteiro { white-space: pre-wrap; }
-@media (max-width: 640px) {
-  .postagem { grid-template-columns: 1fr 1fr; }
-  .postagem .check { grid-column: 1 / -1; }
-}
 
 /* Animado */
 .animado .campos { margin: 0; }
@@ -394,6 +388,36 @@ section.pendencias, section.semana { margin-top: 16px; display: flex; flex-direc
   .membro label:first-child { grid-column: 1 / -1; }
   .visoes { overflow-x: auto; }
   .usuario select.trocar { max-width: 120px; }
-  .nav-semana h2 { font-size: 17px; }
-  .nav-semana { min-width: 0; }
+  .nav-semana { flex: 1 1 100%; flex-wrap: wrap; }
+  .nav-semana h2 { font-size: 17px; flex: 1; text-align: center; }
+  .nav-semana .link { order: 5; flex-basis: 100%; }
+}
+
+/* Responsável da arte, posts e celular */
+.responsavel-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.responsavel-linha label { display: grid; gap: 6px; font-size: 13px; color: var(--texto-2); align-content: start; }
+.responsavel-linha p { grid-column: 1 / -1; margin: 0; }
+.postagem { display: grid; grid-template-columns: 1fr; gap: 8px; background: var(--superficie-2); border-radius: 10px; padding: 10px 12px; }
+.item-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.postagem-campos { display: grid; grid-template-columns: 150px 1fr 1fr 1fr; gap: 8px; }
+.detalhe-card { color: var(--texto) !important; }
+.oque strong small { color: var(--texto-2); font-weight: normal; }
+
+@media (max-width: 640px) {
+  /* No celular o iPhone dá zoom em campo com letra menor que 16px e a tela fica desajustada. */
+  input, select, textarea { font-size: 16px; }
+  .fundo-modal { padding: 0; place-items: stretch; }
+  .modal { max-width: none !important; max-height: none; height: 100dvh; border-radius: 0; border: 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .modal-topo h3 { font-size: 18px; }
+  .modal-rodape { flex-wrap: wrap; position: sticky; bottom: calc(-16px - env(safe-area-inset-bottom)); margin: 16px -16px calc(-16px - env(safe-area-inset-bottom)); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--superficie); border-top: 1px solid var(--borda); }
+  .modal-rodape .espaco { display: none; }
+  .modal-rodape button { flex: 1 1 auto; }
+  .producao div { flex: 1 1 160px; }
+  .producao button { flex: 1 1 100%; }
+  .responsavel-linha { grid-template-columns: 1fr; }
+  .postagem-campos { grid-template-columns: 1fr 1fr; }
+  .video-topo { flex-wrap: wrap; gap: 8px 14px; }
+  .escrever { position: sticky; bottom: 0; background: var(--superficie); padding-top: 8px; }
+  .modal.conversa .mensagens { max-height: none; flex: 1; }
+  .avisos { width: 100%; border-left: 0; }
 }

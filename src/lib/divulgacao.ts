@@ -9,6 +9,8 @@ export interface Postagem {
   rede: string;
   formato: string;
   responsavel_id?: string;
+  /** O que vai ser postado (aceita @). */
+  texto?: string;
   feito: boolean;
 }
 

@@ -13,6 +13,8 @@ export interface Tarefa {
   evento: Evento;
   prazo?: DataISO;
   responsavel_id?: string;
+  /** O que vai ser postado, quando foi escrito. */
+  detalhe?: string;
   feito: boolean;
 }
 
@@ -44,6 +46,7 @@ export function montarTarefas(
         evento: e,
         prazo: p.data,
         responsavel_id: p.responsavel_id,
+        detalhe: p.texto?.trim() || undefined,
         feito: p.feito,
       });
     }

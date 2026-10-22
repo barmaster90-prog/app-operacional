@@ -12,8 +12,8 @@ import {
   type Video,
 } from "../lib/divulgacao.ts";
 import { avisoDeTarefa, avisosDeMencao, enviarAvisos } from "../lib/notificar.ts";
-import { CampoTexto, TextoComMencoes } from "./CampoTexto.tsx";
-import { nomeDe, useEquipe } from "./Equipe.tsx";
+import { CampoTexto } from "./CampoTexto.tsx";
+import { useEquipe } from "./Equipe.tsx";
 
 interface Props {
   evento: Evento;
@@ -28,16 +28,14 @@ function lerReais(texto: string): number | null {
   return limpo && Number.isFinite(n) ? n : null;
 }
 
-const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "sem data");
-
 export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) {
   const [d, setD] = useState<Divulgacao | null>(null);
   const [valor, setValor] = useState("");
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [salvando, setSalvando] = useState(false);
-  // Produção vê tudo (menos o valor) e marca o que já foi postado ou gravado.
-  const leitura = !ehGestao(usuario);
+  // Todo mundo programa posts e vídeos; só a Gestão vê e lança o valor do impulsionamento.
+  const gestao = ehGestao(usuario);
   const equipe = useEquipe();
   const salvoRef = useRef<Divulgacao | null>(null);
 
@@ -71,7 +69,7 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
     setSalvando(true);
     setErro("");
     try {
-      const salvo = await banco.salvarDivulgacao({ ...d, impulso_valor: lerReais(valor) });
+      const salvo = await banco.salvarDivulgacao({ ...d, impulso_valor: gestao ? lerReais(valor) : undefined });
       const antes = salvoRef.current;
       salvoRef.current = salvo;
       setD(salvo);
@@ -81,7 +79,15 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
       const videoAntes = new Map(antes?.videos.map((v) => [v.id, v]));
       await enviarAvisos([
         ...avisosDeMencao(
-          salvo.videos.map((v) => ({ onde: `Roteiro${v.titulo ? ` (${v.titulo})` : ""}`, antes: videoAntes.get(v.id)?.roteiro, depois: v.roteiro })),
+          [
+            { onde: "Legenda", antes: antes?.legenda, depois: salvo.legenda },
+            { onde: "Público do impulsionamento", antes: antes?.impulso_publico, depois: salvo.impulso_publico },
+            ...salvo.postagens.map((p) => ({ onde: `Post ${p.rede} · ${p.formato}`, antes: postAntes.get(p.id)?.texto, depois: p.texto })),
+            ...salvo.videos.flatMap((v) => [
+              { onde: "Vídeo", antes: videoAntes.get(v.id)?.titulo, depois: v.titulo },
+              { onde: `Roteiro${v.titulo ? ` (${v.titulo})` : ""}`, antes: videoAntes.get(v.id)?.roteiro, depois: v.roteiro },
+            ]),
+          ],
           equipe,
           usuario,
           evento,
@@ -101,18 +107,17 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
     }
   }
 
+  // Marcar "postado"/"pronto" grava na hora, sem mexer no que ainda está sendo editado.
   async function marcar(lista: ListaFeita, id: string, feito: boolean) {
     if (!d) return;
-    if (!leitura) {
-      // A Gestão marca junto com o resto e salva no botão.
-      if (lista === "postagens") mudarPostagem(id, { feito });
-      else mudarVideo(id, { feito });
-      return;
-    }
+    if (lista === "postagens") mudarPostagem(id, { feito });
+    else mudarVideo(id, { feito });
+    const salvo = salvoRef.current;
+    if (!salvo || !(salvo[lista] as { id: string }[]).some((x) => x.id === id)) return;
     setErro("");
     try {
       const novo = await banco.marcarFeito(evento.id, lista, id, feito);
-      setD(novo);
+      salvoRef.current = novo;
       setAviso(feito ? "Marcado como feito." : "Desmarcado.");
       onMudou(novo);
     } catch (e) {
@@ -145,24 +150,13 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
 
         <section className="bloco">
           <h4>Legenda do post</h4>
-          <textarea
-            id="div-legenda"
-            rows={5}
-            readOnly={leitura}
-            value={d.legenda ?? ""}
-            onChange={(e) => set("legenda", e.target.value)}
-            placeholder={leitura ? "" : "Texto que vai na legenda do Instagram, TikTok…"}
-          />
+          <CampoTexto id="div-legenda" rows={5} value={d.legenda ?? ""} onChange={(v) => set("legenda", v)} placeholder="Texto que vai na legenda do Instagram, TikTok…" />
           {d.legenda && <button type="button" onClick={copiarLegenda}>Copiar legenda</button>}
         </section>
 
         <section className="bloco">
           <h4>Link de venda ou lista</h4>
-          {leitura ? (
-            d.link_venda ? <a className="link-externo" href={d.link_venda} target="_blank" rel="noreferrer">{d.link_venda}</a> : <small>Nenhum link.</small>
-          ) : (
-            <input id="div-link" value={d.link_venda ?? ""} onChange={(e) => set("link_venda", e.target.value)} placeholder="https://…" />
-          )}
+          <input id="div-link" value={d.link_venda ?? ""} onChange={(e) => set("link_venda", e.target.value)} placeholder="https://…" />
         </section>
 
         <section className="bloco">
@@ -171,71 +165,71 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
           <ul className="itens">
             {d.postagens.map((p) => (
               <li key={p.id} className={`postagem ${p.feito ? "feito" : ""}`}>
-                <label className="check">
-                  <input type="checkbox" checked={p.feito} onChange={(e) => marcar("postagens", p.id, e.target.checked)} />
-                  <span>{p.feito ? "Postado" : "A postar"}</span>
-                </label>
-                {leitura ? (
-                  <span className="resumo-item">
-                    {dataCurta(p.data)} · {p.rede} · {p.formato}
-                    {nomeDe(equipe, p.responsavel_id) && <strong className="mencao"> · @{nomeDe(equipe, p.responsavel_id)}</strong>}
-                  </span>
-                ) : (
-                  <>
-                    <input type="date" aria-label="Data" value={p.data ?? ""} onChange={(e) => mudarPostagem(p.id, { data: e.target.value || undefined })} />
-                    <select aria-label="Rede" value={p.rede} onChange={(e) => mudarPostagem(p.id, { rede: e.target.value })}>
-                      {REDES.map((r) => <option key={r}>{r}</option>)}
-                    </select>
-                    <select aria-label="Formato" value={p.formato} onChange={(e) => mudarPostagem(p.id, { formato: e.target.value })}>
-                      {FORMATOS.map((f) => <option key={f}>{f}</option>)}
-                    </select>
-                    <select aria-label="Quem posta" value={p.responsavel_id ?? ""} onChange={(e) => mudarPostagem(p.id, { responsavel_id: e.target.value || undefined })}>
-                      <option value="">Quem posta?</option>
-                      {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-                    </select>
-                    <button type="button" className="link" onClick={() => set("postagens", d.postagens.filter((x) => x.id !== p.id))}>remover</button>
-                  </>
-                )}
+                <div className="item-topo">
+                  <label className="check">
+                    <input type="checkbox" checked={p.feito} onChange={(e) => marcar("postagens", p.id, e.target.checked)} />
+                    <span>{p.feito ? "Postado" : "A postar"}</span>
+                  </label>
+                  <button type="button" className="link" onClick={() => set("postagens", d.postagens.filter((x) => x.id !== p.id))}>remover</button>
+                </div>
+                <div className="postagem-campos">
+                  <input type="date" aria-label="Data" value={p.data ?? ""} onChange={(e) => mudarPostagem(p.id, { data: e.target.value || undefined })} />
+                  <select aria-label="Rede" value={p.rede} onChange={(e) => mudarPostagem(p.id, { rede: e.target.value })}>
+                    {REDES.map((r) => <option key={r}>{r}</option>)}
+                  </select>
+                  <select aria-label="Formato" value={p.formato} onChange={(e) => mudarPostagem(p.id, { formato: e.target.value })}>
+                    {FORMATOS.map((f) => <option key={f}>{f}</option>)}
+                  </select>
+                  <select aria-label="Quem posta" value={p.responsavel_id ?? ""} onChange={(e) => mudarPostagem(p.id, { responsavel_id: e.target.value || undefined })}>
+                    <option value="">Quem posta?</option>
+                    {equipe.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                  </select>
+                </div>
+                <CampoTexto
+                  linha
+                  ariaLabel="O que vai ser postado"
+                  value={p.texto ?? ""}
+                  onChange={(t) => mudarPostagem(p.id, { texto: t })}
+                  placeholder="O que vai ser postado? Use @ para chamar alguém"
+                />
               </li>
             ))}
           </ul>
-          {!leitura && (
-            <button
-              type="button"
-              className="link"
-              onClick={() => set("postagens", [...d.postagens, { id: novoIdItem(), rede: "Instagram", formato: "Feed", feito: false }])}
-            >
-              + Postagem
-            </button>
-          )}
+          <button
+            type="button"
+            className="link"
+            onClick={() => set("postagens", [...d.postagens, { id: novoIdItem(), rede: "Instagram", formato: "Feed", responsavel_id: gestao ? undefined : usuario.id, feito: false }])}
+          >
+            + Postagem
+          </button>
         </section>
 
         <section className="bloco">
           <h4>Impulsionamento</h4>
           <label className="check">
-            <input id="div-impulsionar" type="checkbox" disabled={leitura} checked={d.impulsionar} onChange={(e) => set("impulsionar", e.target.checked)} />
+            <input id="div-impulsionar" type="checkbox" checked={d.impulsionar} onChange={(e) => set("impulsionar", e.target.checked)} />
             <span>Vai ter impulsionamento</span>
           </label>
           {d.impulsionar && (
             <div className="campos">
               <label>
                 Início
-                <input type="date" readOnly={leitura} value={d.impulso_inicio ?? ""} onChange={(e) => set("impulso_inicio", e.target.value || undefined)} />
+                <input type="date" value={d.impulso_inicio ?? ""} onChange={(e) => set("impulso_inicio", e.target.value || undefined)} />
               </label>
               <label>
                 Fim
-                <input type="date" readOnly={leitura} value={d.impulso_fim ?? ""} onChange={(e) => set("impulso_fim", e.target.value || undefined)} />
+                <input type="date" value={d.impulso_fim ?? ""} onChange={(e) => set("impulso_fim", e.target.value || undefined)} />
               </label>
               <label className="inteiro">
                 Público
-                <input
-                  readOnly={leitura}
+                <CampoTexto
+                  linha
                   value={d.impulso_publico ?? ""}
-                  onChange={(e) => set("impulso_publico", e.target.value)}
-                  placeholder={leitura ? "" : "Ex.: 18 a 26 anos, Blumenau e região, interesse em funk"}
+                  onChange={(v) => set("impulso_publico", v)}
+                  placeholder="Ex.: 18 a 26 anos, Blumenau e região, interesse em funk"
                 />
               </label>
-              {!leitura && (
+              {gestao && (
                 <label>
                   Valor investido (só a Gestão vê)
                   <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="R$" />
@@ -257,22 +251,12 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                     <input type="checkbox" checked={v.feito} onChange={(e) => marcar("videos", v.id, e.target.checked)} />
                     <span>{v.feito ? "Pronto" : "A produzir"}</span>
                   </label>
-                  {!leitura && (
-                    <button type="button" className="link" onClick={() => set("videos", d.videos.filter((x) => x.id !== v.id))}>remover</button>
-                  )}
+                  <button type="button" className="link" onClick={() => set("videos", d.videos.filter((x) => x.id !== v.id))}>remover</button>
                 </div>
-                {leitura ? (
-                  <dl className="ficha">
-                    <dt>O quê</dt><dd>{v.titulo || "—"}</dd>
-                    <dt>Quem produz</dt><dd>{nomeDe(equipe, v.responsavel_id) ? `@${nomeDe(equipe, v.responsavel_id)}` : v.responsavel || "—"}</dd>
-                    <dt>Prazo</dt><dd>{v.prazo ? dataPorExtenso(v.prazo) : "—"}</dd>
-                    <dt>Roteiro</dt><dd className="roteiro"><TextoComMencoes texto={v.roteiro} /></dd>
-                  </dl>
-                ) : (
-                  <div className="campos">
+                <div className="campos">
                     <label className="inteiro">
                       O quê
-                      <input value={v.titulo} onChange={(e) => mudarVideo(v.id, { titulo: e.target.value })} placeholder="Ex.: teaser de anúncio, reels do line-up, aftermovie" />
+                      <CampoTexto linha value={v.titulo} onChange={(t) => mudarVideo(v.id, { titulo: t })} placeholder="Ex.: teaser de anúncio, reels do line-up, aftermovie" />
                     </label>
                     <label>
                       Quem produz
@@ -289,16 +273,13 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
                       Roteiro
                       <CampoTexto rows={4} value={v.roteiro ?? ""} onChange={(t) => mudarVideo(v.id, { roteiro: t })} placeholder="Cenas, falas, músicas, takes que precisam… Use @ para chamar alguém." />
                     </label>
-                  </div>
-                )}
+                </div>
               </li>
             ))}
           </ul>
-          {!leitura && (
-            <button type="button" className="link" onClick={() => set("videos", [...d.videos, { id: novoIdItem(), titulo: "", feito: false }])}>
-              + Vídeo
-            </button>
-          )}
+          <button type="button" className="link" onClick={() => set("videos", [...d.videos, { id: novoIdItem(), titulo: "", feito: false }])}>
+            + Vídeo
+          </button>
         </section>
 
         {erro && <p className="erro">{erro}</p>}
@@ -307,11 +288,9 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
         <div className="modal-rodape">
           <span className="espaco" />
           <button type="button" onClick={onFechar}>Fechar</button>
-          {!leitura && (
-            <button type="button" className="primario" disabled={salvando} onClick={salvar}>
-              {salvando ? "Salvando…" : "Salvar divulgação"}
-            </button>
-          )}
+          <button type="button" className="primario" disabled={salvando} onClick={salvar}>
+            {salvando ? "Salvando…" : "Salvar divulgação"}
+          </button>
         </div>
       </div>
     </div>

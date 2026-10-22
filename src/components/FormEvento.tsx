@@ -112,7 +112,7 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
         <div className="campos">
           <label className="inteiro">
             Nome do evento *
-            <input value={ev.nome ?? ""} onChange={(e) => set("nome", e.target.value)} autoFocus placeholder="Ex.: Hallowtown" />
+            <input value={ev.nome ?? ""} onChange={(e) => set("nome", e.target.value)} autoFocus={!ev.id} placeholder="Ex.: Hallowtown" />
           </label>
 
           <label>

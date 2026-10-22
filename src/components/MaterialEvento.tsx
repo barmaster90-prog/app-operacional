@@ -75,7 +75,9 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           [
             { onde: "Descrição", antes: antes?.descricao, depois: salvo.descricao },
             { onde: "Ideia para a arte", antes: antes?.ideia, depois: salvo.ideia },
+            { onde: "Referência", antes: antes?.referencia, depois: salvo.referencia },
             { onde: "Importante", antes: antes?.importante, depois: salvo.importante },
+            { onde: "Trilha do animado", antes: antes?.animado.trilha, depois: salvo.animado.trilha },
             { onde: "Animado", antes: antes?.animado.obs, depois: salvo.animado.obs },
           ],
           equipe,
@@ -325,7 +327,11 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
           </label>
           <label>
             Referência para criação
-            <input id="mat-ref" readOnly={leitura} value={m.referencia ?? ""} onChange={(e) => set("referencia", e.target.value)} placeholder={leitura ? "" : "Link ou descrição"} />
+            {leitura ? (
+              <input id="mat-ref" readOnly value={m.referencia ?? ""} />
+            ) : (
+              <CampoTexto id="mat-ref" linha value={m.referencia ?? ""} onChange={(v) => set("referencia", v)} placeholder="Link ou descrição" />
+            )}
           </label>
           <label className="inteiro">
             Informação extra / importante
@@ -375,7 +381,11 @@ export function MaterialEvento({ evento, usuario, datasExtras, onFechar, onMudou
               </label>
               <label className="inteiro">
                 Trilha sonora
-                <input id="mat-anim-trilha" readOnly={leitura} value={an.trilha ?? ""} onChange={(e) => setAnimado({ trilha: e.target.value })} placeholder={leitura ? "" : "Música, artista ou estilo"} />
+                {leitura ? (
+                  <input id="mat-anim-trilha" readOnly value={an.trilha ?? ""} />
+                ) : (
+                  <CampoTexto id="mat-anim-trilha" linha value={an.trilha ?? ""} onChange={(v) => setAnimado({ trilha: v })} placeholder="Música, artista ou estilo" />
+                )}
               </label>
               <div className="inteiro">
                 <span className="rotulo">Links (trilha, YouTube, referência)</span>

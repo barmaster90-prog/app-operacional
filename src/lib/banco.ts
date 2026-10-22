@@ -200,8 +200,11 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { impulso_valor, ...publico } = d;
       const { data, error } = await sb.from("divulgacoes").upsert(publico).select().single();
       if (error) throw error;
-      const fin = await sb.from("financeiro").upsert({ evento_id: d.evento_id, impulso_valor: impulso_valor ?? null });
-      if (fin.error) throw fin.error;
+      // undefined = quem salvou não é da Gestão; o valor fica como estava.
+      if (impulso_valor !== undefined) {
+        const fin = await sb.from("financeiro").upsert({ evento_id: d.evento_id, impulso_valor: impulso_valor ?? null });
+        if (fin.error) throw fin.error;
+      }
       return { ...normalizarDivulgacao(data), impulso_valor };
     },
     async marcarFeito(eventoId, lista, itemId, feito) {
@@ -398,6 +401,7 @@ function bancoDemo(): Banco {
       return estado.usuario?.papel === "gestao" ? base : { ...base, impulso_valor: null };
     },
     async salvarDivulgacao(d) {
+      if (d.impulso_valor === undefined) d = { ...d, impulso_valor: estado.divulgacoes?.[d.evento_id]?.impulso_valor };
       estado.divulgacoes = { ...estado.divulgacoes, [d.evento_id]: d };
       gravar();
       return d;
