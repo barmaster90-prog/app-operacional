@@ -22,8 +22,10 @@ create index if not exists eventos_data_idx on public.eventos (data);
 -- Valores das atrações (cachê e observações). Só a Gestão lê e grava.
 create table if not exists public.financeiro (
   evento_id uuid primary key references public.eventos (id) on delete cascade,
-  atracoes jsonb not null default '[]'::jsonb -- [{ nome, cache, obs }]
+  atracoes jsonb not null default '[]'::jsonb, -- [{ nome, cache, obs }]
+  impulso_valor numeric -- valor investido no impulsionamento
 );
+alter table public.financeiro add column if not exists impulso_valor numeric;
 
 -- Perfil de cada login. Toda conta nova entra como Produção; a Gestão muda o papel aqui.
 create table if not exists public.perfis (
@@ -73,6 +75,19 @@ create table if not exists public.materiais (
   em_producao_em timestamptz
 );
 
+-- Divulgação do evento: legenda, postagens, impulsionamento e audiovisual.
+create table if not exists public.divulgacoes (
+  evento_id uuid primary key references public.eventos (id) on delete cascade,
+  legenda text,
+  link_venda text,
+  postagens jsonb not null default '[]'::jsonb, -- [{ id, data, rede, formato, feito }]
+  impulsionar boolean not null default false,
+  impulso_inicio date,
+  impulso_fim date,
+  impulso_publico text,
+  videos jsonb not null default '[]'::jsonb -- [{ id, titulo, responsavel, prazo, roteiro, feito }]
+);
+
 create or replace function public.marcar_atualizacao() returns trigger language plpgsql as $$
 begin
   new.atualizado_em = now();
@@ -89,6 +104,7 @@ alter table public.financeiro enable row level security;
 alter table public.perfis enable row level security;
 alter table public.datas_especiais enable row level security;
 alter table public.materiais enable row level security;
+alter table public.divulgacoes enable row level security;
 
 drop policy if exists "equipe acessa eventos" on public.eventos;
 drop policy if exists "equipe acessa datas" on public.datas_especiais;
@@ -122,6 +138,35 @@ create policy "equipe lê materiais" on public.materiais for select to authentic
 drop policy if exists "gestão grava materiais" on public.materiais;
 create policy "gestão grava materiais" on public.materiais for all to authenticated
   using (public.e_gestao()) with check (public.e_gestao());
+
+drop policy if exists "equipe lê divulgação" on public.divulgacoes;
+create policy "equipe lê divulgação" on public.divulgacoes for select to authenticated using (true);
+drop policy if exists "gestão grava divulgação" on public.divulgacoes;
+create policy "gestão grava divulgação" on public.divulgacoes for all to authenticated
+  using (public.e_gestao()) with check (public.e_gestao());
+
+-- A Produção marca postagens e vídeos como feitos, sem poder mudar o resto.
+create or replace function public.marcar_feito(p_evento uuid, p_lista text, p_item text, p_valor boolean) returns void
+  language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Faça login.'; end if;
+  if p_lista = 'postagens' then
+    update public.divulgacoes set postagens = (
+      select coalesce(jsonb_agg(case when x->>'id' = p_item then jsonb_set(x, '{feito}', to_jsonb(p_valor)) else x end order by n), '[]'::jsonb)
+      from jsonb_array_elements(postagens) with ordinality as t(x, n)
+    ) where evento_id = p_evento;
+  elsif p_lista = 'videos' then
+    update public.divulgacoes set videos = (
+      select coalesce(jsonb_agg(case when x->>'id' = p_item then jsonb_set(x, '{feito}', to_jsonb(p_valor)) else x end order by n), '[]'::jsonb)
+      from jsonb_array_elements(videos) with ordinality as t(x, n)
+    ) where evento_id = p_evento;
+  else
+    raise exception 'Lista inválida.';
+  end if;
+end $$;
+
+revoke all on function public.marcar_feito(uuid, text, text, boolean) from public, anon;
+grant execute on function public.marcar_feito(uuid, text, text, boolean) to authenticated;
 
 -- A Produção só pode marcar ou desmarcar "em produção", por esta função.
 create or replace function public.marcar_producao(p_evento uuid, p_valor boolean) returns void

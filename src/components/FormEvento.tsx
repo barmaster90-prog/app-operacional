@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { banco, type Usuario } from "../lib/banco.ts";
 import { CASAS, STATUS, TIPOS_EVENTO, casa, type Atracao, type CasaId, type Evento, type Status } from "../lib/tipos.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { MaterialEvento } from "./MaterialEvento.tsx";
+import { DivulgacaoEvento } from "./DivulgacaoEvento.tsx";
+import { resumoDivulgacao } from "../lib/divulgacao.ts";
 
 interface Props {
   inicial: Partial<Evento>;
@@ -30,7 +32,13 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
   const [salvando, setSalvando] = useState(false);
   const [confirmarApagar, setConfirmarApagar] = useState(false);
   const [abrirMaterial, setAbrirMaterial] = useState(false);
+  const [abrirDivulgacao, setAbrirDivulgacao] = useState(false);
+  const [resumo, setResumo] = useState("");
   const [emProducao, setEmProducao] = useState(Boolean(inicial.em_producao));
+  useEffect(() => {
+    if (!ev.id) return;
+    banco.divulgacao(ev.id).then((d) => setResumo(resumoDivulgacao(d))).catch(() => setResumo(""));
+  }, [ev.id]);
   const editando = Boolean(ev.id);
 
   const set = <K extends keyof Evento>(k: K, v: Evento[K]) => setEv((x) => ({ ...x, [k]: v }));
@@ -187,9 +195,9 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
               <strong>Material</strong>
               <small>{!ev.id ? "Salve o evento para abrir" : emProducao ? "Arte em produção" : "Arte em aberto"}</small>
             </button>
-            <button type="button" className="secao" disabled>
+            <button type="button" className="secao" disabled={!ev.id} onClick={() => setAbrirDivulgacao(true)}>
               <strong>Divulgação</strong>
-              <small>Em breve</small>
+              <small>{!ev.id ? "Salve o evento para abrir" : resumo || "Abrir"}</small>
             </button>
           </div>
         </div>
@@ -208,6 +216,16 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
           <button className="primario" disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</button>
         </div>
       </form>
+      {abrirDivulgacao && ev.id && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DivulgacaoEvento
+            evento={{ ...(ev as Evento), atracoes: [] }}
+            usuario={usuario}
+            onFechar={() => setAbrirDivulgacao(false)}
+            onMudou={(d) => setResumo(resumoDivulgacao(d))}
+          />
+        </div>
+      )}
       {abrirMaterial && ev.id && (
         <div onClick={(e) => e.stopPropagation()}>
           <MaterialEvento

@@ -4,6 +4,7 @@ import type { DataEspecial } from "./feriados.ts";
 import type { DataISO } from "./datas.ts";
 import { EVENTOS_EXEMPLO } from "./exemplo.ts";
 import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
+import { divulgacaoVazia, normalizarDivulgacao, type Divulgacao, type ListaFeita } from "./divulgacao.ts";
 
 /** Gestão vê e edita tudo. Produção vê a agenda e o Material e marca "em produção", sem ver valores. */
 export type Papel = "gestao" | "producao";
@@ -42,6 +43,10 @@ export interface Banco {
   salvarMaterial(m: Material): Promise<Material>;
   /** Única escrita liberada para a Produção. */
   marcarProducao(eventoId: string, emProducao: boolean): Promise<Material>;
+  divulgacao(eventoId: string): Promise<Divulgacao>;
+  salvarDivulgacao(d: Divulgacao): Promise<Divulgacao>;
+  /** Marca uma postagem ou um vídeo como feito. Liberado também para a Produção. */
+  marcarFeito(eventoId: string, lista: ListaFeita, itemId: string, feito: boolean): Promise<Divulgacao>;
   enviarAnexo(eventoId: string, arquivo: File): Promise<Anexo>;
   removerAnexo(anexo: Anexo): Promise<void>;
 }
@@ -161,6 +166,29 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       if (error) throw error;
       return this.material(eventoId);
     },
+    async divulgacao(eventoId) {
+      const [{ data, error }, fin] = await Promise.all([
+        sb.from("divulgacoes").select("*").eq("evento_id", eventoId).maybeSingle(),
+        // Para a Produção a regra do banco devolve vazio.
+        sb.from("financeiro").select("impulso_valor").eq("evento_id", eventoId).maybeSingle(),
+      ]);
+      if (error) throw error;
+      const d = data ? normalizarDivulgacao(data) : divulgacaoVazia(eventoId);
+      return { ...d, impulso_valor: fin.data?.impulso_valor ?? null };
+    },
+    async salvarDivulgacao(d) {
+      const { impulso_valor, ...publico } = d;
+      const { data, error } = await sb.from("divulgacoes").upsert(publico).select().single();
+      if (error) throw error;
+      const fin = await sb.from("financeiro").upsert({ evento_id: d.evento_id, impulso_valor: impulso_valor ?? null });
+      if (fin.error) throw fin.error;
+      return { ...normalizarDivulgacao(data), impulso_valor };
+    },
+    async marcarFeito(eventoId, lista, itemId, feito) {
+      const { error } = await sb.rpc("marcar_feito", { p_evento: eventoId, p_lista: lista, p_item: itemId, p_valor: feito });
+      if (error) throw error;
+      return this.divulgacao(eventoId);
+    },
     async enviarAnexo(eventoId, arquivo) {
       const caminho = `${eventoId}/${Date.now()}-${arquivo.name.replace(/[^\w.-]+/g, "_")}`;
       const { error } = await sb.storage.from("materiais").upload(caminho, arquivo);
@@ -179,7 +207,13 @@ function bancoSupabase(sb: SupabaseClient): Banco {
 /** Modo demonstração: guarda só neste navegador. Serve para ver o app antes de criar o Supabase. */
 function bancoDemo(): Banco {
   const CHAVE = "app-operacional-demo-v2";
-  type Estado = { usuario: Usuario | null; eventos: Evento[]; datas: DataEspecial[]; materiais?: Record<string, Material> };
+  type Estado = {
+    usuario: Usuario | null;
+    eventos: Evento[];
+    datas: DataEspecial[];
+    materiais?: Record<string, Material>;
+    divulgacoes?: Record<string, Divulgacao>;
+  };
   const ler = (): Estado => {
     try {
       const s = localStorage.getItem(CHAVE);
@@ -239,6 +273,7 @@ function bancoDemo(): Banco {
     async apagarEvento(id) {
       estado.eventos = estado.eventos.filter((x) => x.id !== id);
       if (estado.materiais) delete estado.materiais[id];
+      if (estado.divulgacoes) delete estado.divulgacoes[id];
       gravar();
     },
     async datasEspeciais(de, ate) {
@@ -270,6 +305,22 @@ function bancoDemo(): Banco {
         ? { ...atual, em_producao: true, em_producao_por: quem, em_producao_em: new Date().toISOString() }
         : { ...atual, em_producao: false, em_producao_por: undefined, em_producao_em: undefined };
       return this.salvarMaterial(m);
+    },
+    async divulgacao(eventoId) {
+      const d = estado.divulgacoes?.[eventoId];
+      const base = d ? normalizarDivulgacao(d as unknown as Record<string, unknown>) : divulgacaoVazia(eventoId);
+      return estado.usuario?.papel === "gestao" ? base : { ...base, impulso_valor: null };
+    },
+    async salvarDivulgacao(d) {
+      estado.divulgacoes = { ...estado.divulgacoes, [d.evento_id]: d };
+      gravar();
+      return d;
+    },
+    async marcarFeito(eventoId, lista, itemId, feito) {
+      const d = estado.divulgacoes?.[eventoId] ?? divulgacaoVazia(eventoId);
+      const nova = { ...d, [lista]: (d[lista] as { id: string }[]).map((x) => (x.id === itemId ? { ...x, feito } : x)) };
+      await this.salvarDivulgacao(nova);
+      return this.divulgacao(eventoId);
     },
     async enviarAnexo(_eventoId, arquivo) {
       if (arquivo.size > LIMITE_ANEXO_DEMO) {

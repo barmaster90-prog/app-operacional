@@ -230,3 +230,28 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .ficha dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .links-leitura { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .links-leitura a { color: var(--destaque, #9d8cff); }
+
+/* Divulgação */
+.sub-evento { margin: -6px 0 14px; color: var(--texto-2); font-size: 13px; }
+.bloco { border-top: 1px solid var(--borda); padding: 14px 0 6px; display: grid; gap: 8px; }
+.bloco h4 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-2); display: flex; gap: 10px; align-items: baseline; }
+.bloco h4 .contagem { text-transform: none; letter-spacing: 0; color: var(--texto); font-weight: normal; }
+.bloco > small { color: var(--texto-2); }
+.bloco > button { justify-self: start; }
+.bloco .campos { margin-top: 4px; }
+.link-externo { color: var(--destaque); overflow-wrap: anywhere; }
+.itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.postagem { display: grid; grid-template-columns: 110px 150px 1fr 1fr auto; gap: 8px; align-items: center; }
+.postagem:has(.resumo-item) { grid-template-columns: 110px 1fr; }
+.check { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 8px; color: var(--texto) !important; cursor: pointer; }
+.check input { width: auto; margin: 0; }
+.feito .check span { color: #3ccf7a; }
+.video { background: var(--superficie-2); border-radius: 10px; padding: 12px 14px; }
+.video-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.video-topo strong { flex: 1; }
+.video .ficha { margin: 0; }
+.roteiro { white-space: pre-wrap; }
+@media (max-width: 640px) {
+  .postagem { grid-template-columns: 1fr 1fr; }
+  .postagem .check { grid-column: 1 / -1; }
+}

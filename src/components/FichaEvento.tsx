@@ -1,9 +1,11 @@
-import { useState } from "react";
-import type { Usuario } from "../lib/banco.ts";
+import { useEffect, useState } from "react";
+import { banco, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { MaterialEvento } from "./MaterialEvento.tsx";
+import { DivulgacaoEvento } from "./DivulgacaoEvento.tsx";
+import { resumoDivulgacao } from "../lib/divulgacao.ts";
 
 interface Props {
   evento: Evento;
@@ -16,7 +18,13 @@ interface Props {
 /** Ficha só de leitura, para quem não edita eventos (Produção). Não mostra valores. */
 export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou }: Props) {
   const [abrirMaterial, setAbrirMaterial] = useState(false);
+  const [abrirDivulgacao, setAbrirDivulgacao] = useState(false);
+  const [resumo, setResumo] = useState("");
   const [emProducao, setEmProducao] = useState(Boolean(evento.em_producao));
+  useEffect(() => {
+    if (!evento.id) return;
+    banco.divulgacao(evento.id).then((d) => setResumo(resumoDivulgacao(d))).catch(() => setResumo(""));
+  }, [evento.id]);
   const casas = evento.casas.map((c) => casa(c).nome).join(" + ");
 
   return (
@@ -44,9 +52,9 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou }:
             <strong>Material</strong>
             <small>{emProducao ? "Arte em produção" : "Arte em aberto"}</small>
           </button>
-          <button type="button" className="secao" disabled>
+          <button type="button" className="secao" onClick={() => setAbrirDivulgacao(true)}>
             <strong>Divulgação</strong>
-            <small>Em breve</small>
+            <small>{resumo || "Abrir"}</small>
           </button>
         </div>
 
@@ -55,6 +63,16 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou }:
           <button type="button" onClick={onFechar}>Fechar</button>
         </div>
       </div>
+      {abrirDivulgacao && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DivulgacaoEvento
+            evento={evento}
+            usuario={usuario}
+            onFechar={() => setAbrirDivulgacao(false)}
+            onMudou={(d) => setResumo(resumoDivulgacao(d))}
+          />
+        </div>
+      )}
       {abrirMaterial && (
         <div onClick={(e) => e.stopPropagation()}>
           <MaterialEvento
