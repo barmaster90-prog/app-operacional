@@ -14,7 +14,7 @@ test("ignora pontuação no fim e repetição", () => {
 });
 
 test("só avisa menções novas", () => {
-  assert.deepEqual(novasMencoes("@Master oi", "@Master oi @Audiovisual", equipe).map((x) => x.id), ["audiovisual"]);
+  assert.deepEqual(novasMencoes("@Master oi", "@Master oi @Marketing", equipe).map((x) => x.id), ["marketing"]);
 });
 
 test("detecta @ sendo digitado", () => {
