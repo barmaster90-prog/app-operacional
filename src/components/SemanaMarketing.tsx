@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { banco, ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
+import { banco, ehAgencia, ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
 import { casa } from "../lib/tipos.ts";
 import { DIAS_SEMANA_CURTO, MESES, dataPorExtenso, diaDaSemana, gradeDoMes, hojeISO, partes, somarDias, type DataISO } from "../lib/datas.ts";
 import { datasFixasDoAno, type DataEspecial } from "../lib/feriados.ts";
@@ -59,7 +59,9 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
   const [[ano, mes], setMes] = useState<[number, number]>(() => [partes(hoje)[0], partes(hoje)[1]]);
   const [inicio, setInicio] = useState(() => segunda(hoje));
   const [diaAberto, setDiaAberto] = useState<DataISO | null>(null);
-  const [soMeu, setSoMeu] = useState(!ehGestao(usuario));
+  // Para a Agência este é o calendário de artes para entregar: sem posts, vídeos nem "postar".
+  const agencia = ehAgencia(usuario);
+  const [soMeu, setSoMeu] = useState(!ehGestao(usuario) && !agencia);
   const [verEventos, setVerEventos] = useState(() => ler(CHAVE_EVENTOS, ["sim", "nao"], "nao") === "sim");
   const [local, setLocal] = useState<DadosPainel | null>(null);
   const [datasCadastradas, setDatasCadastradas] = useState<DataEspecial[]>([]);
@@ -84,20 +86,27 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
 
   const fonte = local ?? dados;
 
+  const daAgencia = (t: Tarefa) => t.tipo === "arte" || t.tipo === "pedido";
+  // Dia em que a tarefa aparece. Para a Agência, arte sem prazo fica no dia do evento (ou do post, no pedido).
+  const diaDe = (t: Tarefa) => t.prazo ?? (agencia && t.evento.data ? t.evento.data : undefined);
+
   const tarefas = useMemo(() => {
     if (!fonte) return [];
     return montarTarefas(fonte.eventos, fonte.materiais, fonte.divulgacoes, fonte.pedidos).filter(
-      (t) => t.prazo && (!soMeu || t.responsavel_id === usuario.id || (t.pedido && t.pedido.criado_por_id === usuario.id)),
+      (t) =>
+        diaDe(t) &&
+        (!agencia || daAgencia(t)) &&
+        (!soMeu || t.responsavel_id === usuario.id || (t.pedido && t.pedido.criado_por_id === usuario.id)),
     );
-  }, [fonte, soMeu, usuario.id]);
+  }, [fonte, soMeu, usuario.id, agencia]);
 
   // Tudo o que está atrasado, de qualquer data (não só do período na tela).
   const atrasadas = useMemo(() => {
     if (!dados) return 0;
     return montarTarefas(dados.eventos, dados.materiais, dados.divulgacoes, dados.pedidos).filter(
-      (t) => situacao(t, hoje) === "atrasada" && (!soMeu || t.responsavel_id === usuario.id),
+      (t) => situacao(t, hoje) === "atrasada" && (!agencia || daAgencia(t)) && (!soMeu || t.responsavel_id === usuario.id),
     ).length;
-  }, [dados, hoje, soMeu, usuario.id]);
+  }, [dados, hoje, soMeu, usuario.id, agencia]);
 
   const especiaisPorDia = useMemo(() => {
     const anos = new Set(dias.map((d) => partes(d)[0]));
@@ -111,8 +120,8 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
       eventos: verEventos ? (fonte?.eventos ?? []).filter((e) => e.data === d) : [],
       // Pedido de arte no dia em que vai ser postado. Postar é com o marketing, não com quem faz a arte,
       // então aparece mesmo com "Só o que é meu" ligado (e continua aparecendo depois de finalizado).
-      postar: (fonte?.pedidos ?? []).filter((p) => p.uso === d),
-      tarefas: tarefas.filter((t) => t.prazo === d),
+      postar: agencia ? [] : (fonte?.pedidos ?? []).filter((p) => p.uso === d),
+      tarefas: tarefas.filter((t) => diaDe(t) === d),
       especiais: especiaisPorDia.get(d) ?? [],
     };
   }
@@ -155,7 +164,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
     return (
       <>
         {eventos.map((e) => (
-          <button type="button" key={e.id} className="evento-noite" style={{ borderColor: casa(e.casas[0]).cor }} onClick={() => onAbrir(e.id, e.data, "divulgacao")}>
+          <button type="button" key={e.id} className="evento-noite" style={{ borderColor: casa(e.casas[0]).cor }} onClick={() => onAbrir(e.id, e.data, agencia ? "material" : "divulgacao")}>
             Evento · {casa(e.casas[0]).curto} · {e.nome}
           </button>
         ))}
@@ -170,8 +179,12 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
           return (
             <button type="button" key={t.chave} className={`card-tarefa ${s === "atrasada" ? "atrasada" : ""}`} style={{ borderLeftColor: casaDaTarefa(t).cor }} onClick={() => abrirTarefa(t)}>
               <span className="linha-card">
-                <i className={`sinal-tarefa ${s === "feito" ? "feito" : s === "atrasada" ? "atrasada" : "semana"}`} aria-hidden="true" />
-                <strong>{t.tipo === "pedido" ? "Entregar arte" : t.titulo}</strong>
+                {agencia && t.andamento ? (
+                  <i className={`sinal arte-${t.andamento}`} aria-hidden="true" />
+                ) : (
+                  <i className={`sinal-tarefa ${s === "feito" ? "feito" : s === "atrasada" ? "atrasada" : "semana"}`} aria-hidden="true" />
+                )}
+                <strong>{t.tipo === "pedido" || (agencia && t.tipo === "arte") ? (t.prazo ? "Entregar arte" : "Arte (sem prazo)") : t.titulo}</strong>
               </span>
               {t.detalhe && <span className="detalhe-card">{t.detalhe}</span>}
               <span>{t.tipo === "pedido" ? t.evento.nome : `${casaDaTarefa(t).curto} · ${t.evento.nome}`}</span>
@@ -224,10 +237,21 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
       </div>
 
       <div className="legenda-semana">
-        <span><i className="sinal-tarefa feito" />postado / pronto</span>
-        <span><i className="sinal-tarefa semana" />a fazer</span>
-        <span><i className="sinal-tarefa atrasada" />atrasado</span>
-        <span><i className="tracejado roxo" />arte para postar no dia</span>
+        {agencia ? (
+          <>
+            <span><i className="sinal-tarefa atrasada" />em aberto</span>
+            <span><i className="sinal-tarefa semana" />em produção</span>
+            <span><i className="sinal-tarefa feito" />finalizado</span>
+            <span><i className="fundo-atrasado" />prazo vencido</span>
+          </>
+        ) : (
+          <>
+            <span><i className="sinal-tarefa feito" />postado / pronto</span>
+            <span><i className="sinal-tarefa semana" />a fazer</span>
+            <span><i className="sinal-tarefa atrasada" />atrasado</span>
+            <span><i className="tracejado roxo" />arte para postar no dia</span>
+          </>
+        )}
         {verEventos && <span><i className="tracejado" />evento</span>}
       </div>
 
@@ -262,8 +286,8 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
                     const s = situacao(t, hoje);
                     return (
                       <span key={t.chave} className={`chip chip-mkt ${s === "atrasada" ? "atrasada" : ""}`} style={{ borderLeftColor: casaDaTarefa(t).cor }} title={`${ROTULO[t.tipo]}: ${t.evento.nome}`}>
-                        <span className={`sinal ${s === "feito" ? "sim" : s === "atrasada" ? "nao" : "a-fazer"}`} aria-hidden="true" />
-                        <b>{t.tipo === "pedido" ? "Entregar" : ROTULO[t.tipo]}</b> {t.evento.nome}
+                        <span className={agencia && t.andamento ? `sinal arte-${t.andamento}` : `sinal ${s === "feito" ? "sim" : s === "atrasada" ? "nao" : "a-fazer"}`} aria-hidden="true" />
+                        <b>{t.tipo === "pedido" ? "Entregar" : agencia ? "Arte" : ROTULO[t.tipo]}</b> {t.evento.nome}
                       </span>
                     );
                   }),
@@ -312,7 +336,11 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
           )}
         </div>
       )}
-      <p className="dica">Clique num card para abrir: posts e vídeos abrem a Divulgação do evento, artes abrem o Material e os pedidos abrem o pedido.</p>
+      <p className="dica">
+        {agencia
+          ? "Cada arte aparece no dia de entregar (sem prazo, no dia do evento). Clique para abrir o briefing."
+          : "Clique num card para abrir: posts e vídeos abrem a Divulgação do evento, artes abrem o Material e os pedidos abrem o pedido."}
+      </p>
     </section>
   );
 }

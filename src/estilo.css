@@ -504,3 +504,4 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
 .producao.arte-finalizado .sinal { background: #3ccf7a; }
 .botoes-situacao { display: flex; flex-wrap: wrap; gap: 8px; }
 .so-agencia { font-style: italic; }
+.fundo-atrasado { display: inline-block; width: 14px; height: 10px; border-radius: 3px; background: #3a1418; border: 1px solid #7a2a33; }

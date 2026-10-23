@@ -294,7 +294,11 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
         <PedidosArte usuario={usuario} pedidos={dados?.pedidos ?? null} lembretes={lembretes} onAbrir={setPedidoAberto} onNovo={novoPedido} />
       )}
 
-      {visao === "agenda" && (<>
+      {visao === "agenda" && ehAgencia(usuario) && (
+        <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} />
+      )}
+
+      {visao === "agenda" && !ehAgencia(usuario) && (<>
       <nav className="abas" aria-label="Casas">
         {ABAS.map((a) => (
           <button key={a.id} className={a.id === aba ? "ativa" : ""} onClick={() => setAba(a.id)}>
