@@ -362,7 +362,7 @@ section.pendencias, section.semana { margin-top: 16px; display: flex; flex-direc
 .cab-dia { display: flex; align-items: baseline; gap: 6px; }
 .cab-dia span { color: var(--texto-2); }
 .evento-noite { text-align: left; font-size: 12px; padding: 5px 8px !important; background: transparent !important; border: 1px dashed !important; border-radius: 8px !important; color: #dcd8e6; overflow: hidden; text-overflow: ellipsis; }
-.card-tarefa { text-align: left; display: flex !important; flex-direction: column; gap: 3px; padding: 7px 9px !important; border-left: 4px solid !important; font-size: 12px; min-width: 0; }
+.card-tarefa { text-align: left; display: flex !important; flex-direction: column; gap: 3px; padding: 7px 9px !important; border-left-width: 4px !important; border-left-style: solid !important; font-size: 12px; min-width: 0; }
 .card-tarefa .linha-card { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
 .card-tarefa .linha-card .sinal-tarefa { width: 8px; height: 8px; }
 .card-tarefa > span:not(.linha-card) { color: #dcd8e6; overflow: hidden; text-overflow: ellipsis; }
@@ -466,3 +466,27 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
 }
 .lembretes .tarefa { grid-template-columns: 12px minmax(0, 1fr) auto !important; }
 .visoes button { white-space: nowrap; }
+
+/* Calendário do marketing (separado da agenda de eventos) */
+.seletor-modo { display: inline-flex; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+.seletor-modo button { border: 0 !important; border-radius: 0 !important; padding: 6px 14px !important; background: transparent; }
+.seletor-modo button.ativa { background: var(--texto) !important; color: var(--fundo); font-weight: 600; }
+.filtros-marketing { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 14px; }
+.aviso-atrasadas { display: inline-flex !important; align-items: center; gap: 8px; margin-left: auto; background: #3a1418 !important; border-color: #7a2a33 !important; color: #ffb3ba; font-size: 13px; }
+.sinal.a-fazer { background: var(--feriado); }
+.chip.chip-mkt { background: var(--superficie-2); color: var(--texto); border-left: 4px solid; display: flex; align-items: center; gap: 4px; }
+.chip.chip-mkt .sinal { width: 6px; height: 6px; }
+.chip.chip-mkt.atrasada { background: #3a1418; color: #ffcdd2; }
+.chip.chip-evento { background: transparent; border: 1px dashed; color: var(--texto-2); }
+.card-tarefa.atrasada { background: #2a1215 !important; }
+.painel-marketing .lista-marketing { display: grid; gap: 8px; }
+.painel-marketing .especial { white-space: normal; font-size: 13px; }
+@media (max-width: 640px) {
+  .filtros-marketing { gap: 8px 14px; }
+  .aviso-atrasadas { margin-left: 0; }
+  .seletor-modo { flex: 1 1 100%; }
+  .seletor-modo button { flex: 1; }
+  .chip.chip-mkt { border-left-width: 3px; }
+  .chip.chip-mkt .sinal { display: none; }
+  .painel-marketing .especial { display: block; }
+}

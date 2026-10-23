@@ -142,14 +142,6 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
   }, [dados, usuario.id, hoje]);
   const naoLidos = avisos.filter((a) => !a.lido).length;
   const lembretes = useMemo(() => (dados ? lembretesDeArte(datasProximas, dados.pedidos, hoje) : []), [datasProximas, dados, hoje]);
-  const pedidosPorDia = useMemo(() => {
-    const mapa = new Map<DataISO, Pedido[]>();
-    for (const p of dados?.pedidos ?? []) {
-      if (!p.uso || (aba !== "geral" && p.casas.length > 0 && !p.casas.some((c) => casa(c).aba === aba))) continue;
-      mapa.set(p.uso, [...(mapa.get(p.uso) ?? []), p]);
-    }
-    return mapa;
-  }, [dados, aba]);
 
   function novoPedido(campos: Partial<Pedido> = {}) {
     setVerAvisos(false);
@@ -291,7 +283,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
       {recado && <p className="recado" role="status">{recado}</p>}
 
       {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} />}
-      {visao === "marketing" && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} />}
+      {visao === "marketing" && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} />}
       {visao === "pedidos" && (
         <PedidosArte usuario={usuario} pedidos={dados?.pedidos ?? null} lembretes={lembretes} onAbrir={setPedidoAberto} onNovo={novoPedido} />
       )}
@@ -323,7 +315,6 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             {grade.map((d) => {
               const [, m, dia] = partes(d);
               const evs = eventosPorDia.get(d) ?? [];
-              const peds = pedidosPorDia.get(d) ?? [];
               const especiais = datasPorDia.get(d) ?? [];
               const feriado = especiais.some((x) => x.tipo === "feriado");
               const classes = [
@@ -352,12 +343,6 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                       </span>
                     ))}
                     {evs.length > 3 && <span className="mais">+{evs.length - 3}</span>}
-                    {peds.slice(0, evs.length > 2 ? 1 : 2).map((p) => (
-                      <span key={p.id} className="chip chip-pedido" title={`Pedido de arte: ${p.titulo}`}>
-                        <span className={`sinal ${p.em_producao || p.entregue ? "sim" : "nao"}`} aria-hidden="true" />
-                        <b>Arte</b> {p.titulo}
-                      </span>
-                    ))}
                   </span>
                 </button>
               );
@@ -375,9 +360,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             data={diaAberto}
             eventos={eventosPorDia.get(diaAberto) ?? []}
             especiais={datasPorDia.get(diaAberto) ?? []}
-            pedidos={pedidosPorDia.get(diaAberto) ?? []}
             podeEditar={ehGestao(usuario)}
-            onAbrirPedido={setPedidoAberto}
             onFechar={() => setDiaAberto(null)}
             onNovo={() => novoEvento(diaAberto)}
             onEditar={(e) => setEditando(e)}

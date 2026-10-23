@@ -3,7 +3,6 @@ import { banco } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { dataPorExtenso, type DataISO } from "../lib/datas.ts";
 import type { DataEspecial, TipoData } from "../lib/feriados.ts";
-import type { Pedido } from "../lib/pedidos.ts";
 
 const NOME_TIPO: Record<TipoData, string> = {
   feriado: "Feriado",
@@ -16,16 +15,14 @@ interface Props {
   data: DataISO;
   eventos: Evento[];
   especiais: DataEspecial[];
-  pedidos: Pedido[];
   podeEditar: boolean;
-  onAbrirPedido(p: Pedido): void;
   onFechar(): void;
   onNovo(): void;
   onEditar(e: Evento): void;
   onDatasMudaram(): void;
 }
 
-export function PainelDia({ data, eventos, especiais, pedidos, podeEditar, onAbrirPedido, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
+export function PainelDia({ data, eventos, especiais, podeEditar, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
   const [novaData, setNovaData] = useState<{ nome: string; tipo: TipoData; precisa_arte: boolean; avisar_dias: number } | null>(null);
   const [apagando, setApagando] = useState<string | null>(null);
 
@@ -82,25 +79,6 @@ export function PainelDia({ data, eventos, especiais, pedidos, podeEditar, onAbr
         </ul>
       )}
 
-      {pedidos.length > 0 && (
-        <ul className="lista-eventos">
-          {pedidos.map((p) => (
-            <li key={p.id}>
-              <button className="cartao cartao-pedido" onClick={() => onAbrirPedido(p)}>
-                <span className="casas">Pedido de arte · {p.casas.length ? p.casas.map((c) => casa(c).nome).join(" + ") : "Todas as casas"}</span>
-                <strong>{p.titulo}</strong>
-                <span className="linha">
-                  {p.pecas.length > 0 && <span>{p.pecas.join(" + ")}</span>}
-                  <span className="arte">
-                    <span className={`sinal ${p.em_producao || p.entregue ? "sim" : "nao"}`} aria-hidden="true" />
-                    {p.entregue ? "Entregue" : p.em_producao ? "Em produção" : "Em aberto"}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
 
       {podeEditar && <button className="primario largo" onClick={onNovo}>+ Adicionar evento</button>}
 
