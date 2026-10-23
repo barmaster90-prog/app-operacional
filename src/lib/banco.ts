@@ -351,6 +351,9 @@ function bancoDemo(): Banco {
   };
   let estado = ler();
   if (!estado.equipe?.length) estado.equipe = EQUIPE_EXEMPLO;
+  // A Agência do exemplo era Produção até ganhar perfil próprio (23/10/2026).
+  estado.equipe = estado.equipe.map((m) => (m.id === "agencia" && m.papel === "producao" ? { ...m, papel: "agencia" } : m));
+  if (estado.usuario?.id === "agencia" && estado.usuario.papel === "producao") estado.usuario = { ...estado.usuario, papel: "agencia" };
   // Quem entrou antes da equipe existir vira o membro equivalente ao perfil que tinha.
   if (estado.usuario && !estado.equipe.some((m) => m.id === estado.usuario!.id)) {
     const m = estado.equipe.find((x) => x.papel === (estado.usuario!.papel ?? "gestao")) ?? estado.equipe[0];

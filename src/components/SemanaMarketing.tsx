@@ -86,7 +86,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
   const tarefas = useMemo(() => {
     if (!fonte) return [];
     return montarTarefas(fonte.eventos, fonte.materiais, fonte.divulgacoes, fonte.pedidos).filter(
-      (t) => t.prazo && (!soMeu || t.responsavel_id === usuario.id),
+      (t) => t.prazo && (!soMeu || t.responsavel_id === usuario.id || (t.pedido && t.pedido.criado_por_id === usuario.id)),
     );
   }, [fonte, soMeu, usuario.id]);
 
@@ -108,8 +108,9 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
   function doDia(d: DataISO) {
     return {
       eventos: verEventos ? (fonte?.eventos ?? []).filter((e) => e.data === d) : [],
-      // Pedido de arte no dia em que vai ser postado.
-      postar: (fonte?.pedidos ?? []).filter((p) => p.uso === d && !p.entregue && (!soMeu || p.responsavel_id === usuario.id)),
+      // Pedido de arte no dia em que vai ser postado. Postar é com o marketing, não com quem faz a arte,
+      // então aparece mesmo com "Só o que é meu" ligado (e continua aparecendo depois de entregue).
+      postar: (fonte?.pedidos ?? []).filter((p) => p.uso === d),
       tarefas: tarefas.filter((t) => t.prazo === d),
       especiais: especiaisPorDia.get(d) ?? [],
     };
@@ -159,7 +160,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
         ))}
         {postar.map((p) => (
           <button type="button" key={p.id} className="evento-noite pedido-dia" onClick={() => abrirPedido(p)}>
-            Postar arte · {p.titulo}
+            Postar arte · {p.titulo}{p.entregue ? " · arte entregue" : ""}
           </button>
         ))}
         {ts.map((t) => {
@@ -267,6 +268,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
                   }),
                   ...postar.map((p) => (
                     <span key={p.id} className="chip chip-pedido" title={`Postar arte: ${p.titulo}`}>
+                      <span className={`sinal ${p.entregue ? "sim" : "a-fazer"}`} aria-hidden="true" />
                       <b>Postar</b> {p.titulo}
                     </span>
                   )),
