@@ -275,7 +275,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
           <button key={v.id} type="button" className={v.id === visao ? "ativa" : ""} aria-current={v.id === visao ? "page" : undefined} onClick={() => setVisao(v.id)}>
             {v.nome}
             {v.id === "pendencias" && atrasadasMinhas > 0 && <span className="contador">{atrasadasMinhas}</span>}
-            {v.id === "pedidos" && ehGestao(usuario) && lembretes.length > 0 && <span className="contador">{lembretes.length}</span>}
+            {v.id === "pedidos" && lembretes.length > 0 && <span className="contador">{lembretes.length}</span>}
           </button>
         ))}
       </nav>

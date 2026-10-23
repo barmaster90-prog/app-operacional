@@ -507,7 +507,7 @@ function bancoDemo(): Banco {
       return (estado.pedidos ?? []).map((p) => normalizarPedido(p as unknown as Record<string, unknown>));
     },
     async salvarPedido(p) {
-      const novo = { ...p, id: p.id || novoId(), criado_em: p.criado_em ?? new Date().toISOString(), criado_por: p.criado_por ?? estado.usuario?.nome };
+      const novo = { ...p, id: p.id || novoId(), criado_em: p.criado_em ?? new Date().toISOString(), criado_por: p.criado_por ?? estado.usuario?.nome, criado_por_id: p.criado_por_id ?? estado.usuario?.id };
       estado.pedidos = [novo, ...(estado.pedidos ?? []).filter((x) => x.id !== novo.id)];
       gravar();
       return novo;

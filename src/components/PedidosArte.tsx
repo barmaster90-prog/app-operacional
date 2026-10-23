@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ehGestao, type Usuario } from "../lib/banco.ts";
+import type { Usuario } from "../lib/banco.ts";
 import { casa } from "../lib/tipos.ts";
 import { dataPorExtenso, hojeISO } from "../lib/datas.ts";
 import { situacaoPedido, type Lembrete, type Pedido, type SituacaoPedido } from "../lib/pedidos.ts";
@@ -29,7 +29,6 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
   const equipe = useEquipe();
   const hoje = hojeISO();
   const [filtro, setFiltro] = useState<SituacaoPedido>("aberto");
-  const gestao = ehGestao(usuario);
   const conta = (s: SituacaoPedido) => (pedidos ?? []).filter((p) => situacaoPedido(p) === s).length;
   const lista = (pedidos ?? [])
     .filter((p) => situacaoPedido(p) === filtro)
@@ -42,10 +41,10 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
           <h2>Pedidos de arte</h2>
           <p>Artes que não são de um evento: datas comemorativas, cardápio, vagas, avisos.</p>
         </div>
-        {gestao && <button type="button" className="primario" onClick={() => onNovo()}>+ Novo pedido</button>}
+        <button type="button" className="primario" onClick={() => onNovo()}>+ Novo pedido</button>
       </div>
 
-      {gestao && lembretes.length > 0 && (
+      {lembretes.length > 0 && (
         <section className="bloco-pendencias lembretes">
           <h3>Datas chegando sem arte pedida · {lembretes.length}</h3>
           <ul>
@@ -77,7 +76,7 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
         <p className="vazio">Carregando…</p>
       ) : lista.length === 0 ? (
         <p className="vazio">
-          {filtro === "aberto" ? (gestao ? "Nenhum pedido em aberto. Use + Novo pedido." : "Nenhum pedido em aberto.") : "Nada aqui."}
+          {filtro === "aberto" ? "Nenhum pedido em aberto. Use + Novo pedido." : "Nada aqui."}
         </p>
       ) : (
         <ul className="lista-pedidos">
@@ -101,7 +100,7 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
                     )}
                     <span>{p.pecas.join(" + ")}</span>
                   </span>
-                  <span className="pedido-data uso"><small>Usar</small>{p.uso ? diaCurto(p.uso) : "sem data"}</span>
+                  <span className="pedido-data uso"><small>Postar</small>{p.uso ? diaCurto(p.uso) : "sem data"}</span>
                   <span className={`pedido-data prazo-pedido ${atrasado ? "atrasado" : ""}`}>
                     <small>Entregar</small>
                     {p.prazo ? (atrasado ? `venceu ${dataCurta(p.prazo)}` : dataCurta(p.prazo)) : "sem prazo"}

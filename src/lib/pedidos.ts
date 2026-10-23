@@ -17,6 +17,8 @@ export interface Pedido extends Omit<Material, "evento_id"> {
   uso?: DataISO;
   entregue: boolean;
   criado_por?: string;
+  /** Quem criou: pode apagar o pedido, além da Gestão. */
+  criado_por_id?: string;
   criado_em?: string;
 }
 

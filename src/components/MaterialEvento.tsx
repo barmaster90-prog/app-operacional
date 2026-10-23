@@ -24,7 +24,7 @@ interface Props {
   onPedidoApagado?(id: string): void;
 }
 
-type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "entregue" | "criado_por" | "criado_em">;
+type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "entregue" | "criado_por" | "criado_por_id" | "criado_em">;
 
 const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "");
 
@@ -46,8 +46,9 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
   // Última versão salva: para saber quem foi mencionado ou virou responsável agora.
   const salvoRef = useRef<Material | null>(null);
   const equipe = useEquipe();
-  // Produção só lê, baixa e marca "em produção"; quem preenche é a Gestão.
-  const leitura = !ehGestao(usuario);
+  // No Material do evento, a Produção só lê, baixa e marca "em produção".
+  // Pedido de arte qualquer um da equipe cria e edita (o marketing pede direto à agência).
+  const leitura = evento ? !ehGestao(usuario) : false;
   const [pedidoId, setPedidoId] = useState(pedido?.id ?? "");
   const [cab, setCab] = useState<Cabecalho>(() => ({
     titulo: pedido?.titulo ?? "",
@@ -56,6 +57,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     uso: pedido?.uso,
     entregue: pedido?.entregue ?? false,
     criado_por: pedido?.criado_por,
+    criado_por_id: pedido?.criado_por_id,
     criado_em: pedido?.criado_em,
   }));
   const [apagar, setApagar] = useState(false);
@@ -100,6 +102,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     const { evento_id: _id, ...briefing } = novo;
     const p = await banco.salvarPedido({ ...briefing, ...cab, titulo: cab.titulo.trim(), id: pedidoId });
     setPedidoId(p.id);
+    setCab((c) => ({ ...c, criado_por: p.criado_por, criado_por_id: p.criado_por_id, criado_em: p.criado_em }));
     onPedido?.(p);
     return materialDoPedido(p);
   }
@@ -221,7 +224,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     setErro("");
     try {
       const novos = [];
-      for (const a of arquivos) novos.push(await banco.enviarAnexo(evento?.id ?? (pedidoId || "pedidos"), a));
+      for (const a of arquivos) novos.push(await banco.enviarAnexo(evento?.id ?? `pedidos/${pedidoId || "novo"}`, a));
       await gravar({ ...m, anexos: [...m.anexos, ...novos] }, novos.length > 1 ? "Imagens anexadas." : "Imagem anexada.");
     } catch (er) {
       setErro(er instanceof Error ? er.message : "Não foi possível anexar.");
@@ -592,7 +595,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
 
         <div className="modal-rodape">
           <span className="espaco" />
-          {!evento && pedidoId && !leitura && (
+          {!evento && pedidoId && (ehGestao(usuario) || cab.criado_por_id === usuario.id) && (
             <button type="button" className="perigo" onClick={apagarPedido}>{apagar ? "Confirmar: apagar" : "Apagar"}</button>
           )}
           <button type="button" onClick={onFechar}>Fechar</button>

@@ -178,9 +178,17 @@ alter table public.pedidos_arte enable row level security;
 
 drop policy if exists "equipe lê pedidos" on public.pedidos_arte;
 create policy "equipe lê pedidos" on public.pedidos_arte for select to authenticated using (true);
+-- Toda a equipe cria e edita pedidos (o marketing pede direto à agência).
+-- Apagar: só a Gestão ou quem criou o pedido.
+alter table public.pedidos_arte add column if not exists criado_por_id uuid default auth.uid() references public.perfis (id) on delete set null;
 drop policy if exists "gestão grava pedidos" on public.pedidos_arte;
-create policy "gestão grava pedidos" on public.pedidos_arte for all to authenticated
-  using (public.e_gestao()) with check (public.e_gestao());
+drop policy if exists "equipe cria pedidos" on public.pedidos_arte;
+create policy "equipe cria pedidos" on public.pedidos_arte for insert to authenticated with check (true);
+drop policy if exists "equipe edita pedidos" on public.pedidos_arte;
+create policy "equipe edita pedidos" on public.pedidos_arte for update to authenticated using (true) with check (true);
+drop policy if exists "gestão ou autor apaga pedidos" on public.pedidos_arte;
+create policy "gestão ou autor apaga pedidos" on public.pedidos_arte for delete to authenticated
+  using (public.e_gestao() or criado_por_id = auth.uid());
 
 drop policy if exists "equipe acessa eventos" on public.eventos;
 drop policy if exists "equipe acessa datas" on public.datas_especiais;
@@ -312,3 +320,8 @@ drop policy if exists "gestão grava imagens" on storage.objects;
 create policy "gestão grava imagens" on storage.objects for all to authenticated
   using (bucket_id = 'materiais' and public.e_gestao())
   with check (bucket_id = 'materiais' and public.e_gestao());
+-- Imagens dos pedidos de arte: a equipe toda anexa e remove (ficam em pedidos/).
+drop policy if exists "equipe grava imagens dos pedidos" on storage.objects;
+create policy "equipe grava imagens dos pedidos" on storage.objects for all to authenticated
+  using (bucket_id = 'materiais' and name like 'pedidos/%')
+  with check (bucket_id = 'materiais' and name like 'pedidos/%');
