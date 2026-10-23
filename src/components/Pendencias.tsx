@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { banco, ehAgencia, ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
 import { ABAS, eventoDaAba, type AbaId } from "../lib/tipos.ts";
+import { NOME_SITUACAO_ARTE } from "../lib/material.ts";
 import { hojeISO, somarDias } from "../lib/datas.ts";
 import { casaDaTarefa, dataDaTarefa, destinoDaTarefa, montarTarefas, situacao, type Situacao, type Tarefa } from "../lib/tarefas.ts";
 import type { Destino } from "../lib/avisos.ts";
@@ -137,7 +138,12 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props
                         <li key={t.chave} className="tarefa">
                           <span className={`sinal-tarefa ${sec.id === "feito" ? "semana" : sec.id}`} aria-hidden="true" />
                           <div className="oque">
-                            <strong>{t.titulo}{t.detalhe && <small> · {t.detalhe}</small>}</strong>
+                            <strong>
+                              {t.titulo}{t.detalhe && <small> · {t.detalhe}</small>}
+                              {t.andamento && (
+                                <small className={`situacao-linha arte-${t.andamento}`}> · {NOME_SITUACAO_ARTE[t.andamento].toLowerCase()}</small>
+                              )}
+                            </strong>
                             <span>
                               <i className="etiqueta" style={{ background: c.cor }}>{c.curto}</i> {t.evento.nome}{t.evento.data && ` · ${dataCurta(t.evento.data)}`}
                             </span>

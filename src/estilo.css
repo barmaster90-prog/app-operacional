@@ -522,3 +522,9 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
   .usuario { gap: 4px 6px; }
   .usuario select.trocar { max-width: 100px; }
 }
+
+/* Situação da arte na linha das Pendências */
+.situacao-linha { font-weight: 600; }
+.situacao-linha.arte-aberto { color: #ff8a8d; }
+.situacao-linha.arte-producao { color: var(--feriado); }
+.situacao-linha.arte-finalizado { color: #3ccf7a; }
