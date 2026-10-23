@@ -2,7 +2,7 @@ import { somarDias, type DataISO } from "./datas.ts";
 import { casa, type Evento } from "./tipos.ts";
 import type { Destino } from "./avisos.ts";
 import { situacaoArte, type Material, type SituacaoArte } from "./material.ts";
-import type { Divulgacao } from "./divulgacao.ts";
+import type { Divulgacao, ListaFeita } from "./divulgacao.ts";
 import type { Pedido } from "./pedidos.ts";
 
 export type TipoTarefa = "arte" | "post" | "video" | "pedido";
@@ -19,6 +19,8 @@ export interface Tarefa {
   responsavel_id?: string;
   /** Arte e pedido: em aberto, em produção ou finalizado (feito = finalizado). */
   andamento?: SituacaoArte;
+  /** Post ou vídeo: onde marcar "postado"/"pronto" sem abrir o evento. */
+  item?: { lista: ListaFeita; id: string };
   /** O que vai ser postado, quando foi escrito. */
   detalhe?: string;
   feito: boolean;
@@ -68,6 +70,7 @@ export function montarTarefas(
         prazo: p.data,
         responsavel_id: p.responsavel_id,
         detalhe: p.texto?.trim() || undefined,
+        item: { lista: "postagens", id: p.id },
         feito: p.feito,
       });
     }
@@ -79,6 +82,7 @@ export function montarTarefas(
         evento: e,
         prazo: v.prazo,
         responsavel_id: v.responsavel_id,
+        item: { lista: "videos", id: v.id },
         feito: v.feito,
       });
     }

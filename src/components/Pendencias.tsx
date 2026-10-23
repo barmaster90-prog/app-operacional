@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ehAgencia, ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
+import { banco, ehAgencia, ehGestao, type DadosPainel, type Usuario } from "../lib/banco.ts";
 import { ABAS, eventoDaAba, type AbaId } from "../lib/tipos.ts";
 import { hojeISO, somarDias } from "../lib/datas.ts";
 import { casaDaTarefa, dataDaTarefa, destinoDaTarefa, montarTarefas, situacao, type Situacao, type Tarefa } from "../lib/tarefas.ts";
@@ -11,6 +11,8 @@ interface Props {
   dados: DadosPainel | null;
   onAbrir(eventoId: string, data: string, destino: Destino): void;
   onCobrar(t: Tarefa): Promise<void>;
+  /** Algo foi marcado aqui (ex.: postado): recarrega os dados. */
+  onMudou?(): void;
 }
 
 const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "—");
@@ -28,7 +30,7 @@ const SECOES: { id: Situacao; titulo: string; vazio: string }[] = [
   { id: "sem_prazo", titulo: "Artes em aberto sem prazo (eventos das próximas 2 semanas)", vazio: "Toda arte das próximas 2 semanas tem prazo ou já foi para produção." },
 ];
 
-export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
+export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props) {
   const equipe = useEquipe();
   const hoje = hojeISO();
   const [aba, setAba] = useState<AbaId>("geral");
@@ -54,6 +56,19 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
   const emProducao = agencia
     ? tarefas.filter((t) => t.andamento === "producao")
     : [];
+
+  const [marcando, setMarcando] = useState("");
+  /** Post postado / vídeo pronto com um clique, sem abrir o evento. */
+  async function marcarFeito(t: Tarefa) {
+    if (!t.item) return;
+    setMarcando(t.chave);
+    try {
+      await banco.marcarFeito(t.evento.id, t.item.lista, t.item.id, true);
+      onMudou?.();
+    } finally {
+      setMarcando("");
+    }
+  }
 
   async function cobrar(t: Tarefa) {
     await onCobrar(t);
@@ -117,6 +132,11 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
                           <span className="prazo">{t.prazo ? (sec.id === "atrasada" ? `venceu ${dataCurta(t.prazo)}` : dataCurta(t.prazo)) : "sem prazo"}</span>
                           <span className={resp ? "mencao" : "sem-resp"}>{resp ? `@${resp}` : "sem responsável"}</span>
                           <span className="acoes">
+                            {t.item && !agencia && (
+                              <button type="button" className="primario" disabled={marcando === t.chave} onClick={() => marcarFeito(t)}>
+                                {t.tipo === "post" ? "Postado" : "Pronto"}
+                              </button>
+                            )}
                             <button type="button" onClick={() => onAbrir(t.evento.id, t.evento.data, destinoDa(t))}>Abrir</button>
                             {ehGestao(usuario) && t.responsavel_id && t.responsavel_id !== usuario.id && (
                               <button type="button" disabled={cobradas.has(t.chave)} onClick={() => cobrar(t)}>

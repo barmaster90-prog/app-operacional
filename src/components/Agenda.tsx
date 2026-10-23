@@ -288,8 +288,8 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
 
       {recado && <p className="recado" role="status">{recado}</p>}
 
-      {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} />}
-      {visao === "marketing" && !ehAgencia(usuario) && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} />}
+      {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} onMudou={carregarExtras} />}
+      {visao === "marketing" && !ehAgencia(usuario) && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} onMudou={carregarExtras} />}
       {visao === "pedidos" && (
         <PedidosArte usuario={usuario} pedidos={dados?.pedidos ?? null} lembretes={lembretes} onAbrir={setPedidoAberto} onNovo={novoPedido} />
       )}

@@ -505,3 +505,8 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
 .botoes-situacao { display: flex; flex-wrap: wrap; gap: 8px; }
 .so-agencia { font-style: italic; }
 .fundo-atrasado { display: inline-block; width: 14px; height: 10px; border-radius: 3px; background: #3a1418; border: 1px solid #7a2a33; }
+.card-com-acao { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.marcar-feito { font-size: 12px; padding: 5px 8px !important; text-align: center; }
+.marcar-feito.sim { color: #3ccf7a; background: transparent !important; }
+.selo-feito { font-size: 13px; color: var(--feriado); font-weight: 600; }
+.selo-feito.sim { color: #3ccf7a; }

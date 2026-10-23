@@ -15,6 +15,8 @@ interface Props {
   dados: DadosPainel | null;
   onAbrir(eventoId: string, data: string, destino: Destino): void;
   onVerPendencias(): void;
+  /** Algo foi marcado aqui (ex.: postado): recarrega os outros painéis. */
+  onMudou?(): void;
 }
 
 type Modo = "mes" | "semana";
@@ -52,7 +54,7 @@ function guardar(chave: string, valor: string) {
  * Calendário do marketing, separado da agenda de eventos: posts, vídeos, artes,
  * pedidos e o que está atrasado. Os eventos só aparecem se a pessoa ligar.
  */
-export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Props) {
+export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias, onMudou }: Props) {
   const equipe = useEquipe();
   const hoje = hojeISO();
   const [modo, setModo] = useState<Modo>(() => ler(CHAVE_MODO, ["mes", "semana"], "mes"));
@@ -65,6 +67,8 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
   const [verEventos, setVerEventos] = useState(() => ler(CHAVE_EVENTOS, ["sim", "nao"], "nao") === "sim");
   const [local, setLocal] = useState<DadosPainel | null>(null);
   const [datasCadastradas, setDatasCadastradas] = useState<DataEspecial[]>([]);
+  const [versao, setVersao] = useState(0);
+  const [marcando, setMarcando] = useState("");
 
   const grade = useMemo(() => gradeDoMes(ano, mes), [ano, mes]);
   const dias = modo === "mes" ? grade : Array.from({ length: 7 }, (_, i) => somarDias(inicio, i));
@@ -82,7 +86,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
     return () => {
       vivo = false;
     };
-  }, [de, ate, dados]);
+  }, [de, ate, dados, versao]);
 
   const fonte = local ?? dados;
 
@@ -158,6 +162,19 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
     : `Semana de ${String(di).padStart(2, "0")}/${String(mi).padStart(2, "0")} a ${String(df).padStart(2, "0")}/${String(mf).padStart(2, "0")}`;
   const estaNoHoje = modo === "mes" ? ano === partes(hoje)[0] && mes === partes(hoje)[1] : inicio === segunda(hoje);
 
+  /** Marca o post como postado (ou o vídeo como pronto) com um clique, sem abrir o evento. */
+  async function marcarFeito(t: Tarefa) {
+    if (!t.item) return;
+    setMarcando(t.chave);
+    try {
+      await banco.marcarFeito(t.evento.id, t.item.lista, t.item.id, !t.feito);
+      setVersao((v) => v + 1);
+      onMudou?.();
+    } finally {
+      setMarcando("");
+    }
+  }
+
   /** Os cards de um dia: usados na semana e no painel do dia do mês. */
   function cartoes(d: DataISO) {
     const { eventos, postar, tarefas: ts } = doDia(d);
@@ -177,7 +194,8 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
           const s = situacao(t, hoje);
           const resp = nomeDe(equipe, t.responsavel_id);
           return (
-            <button type="button" key={t.chave} className={`card-tarefa ${s === "atrasada" ? "atrasada" : ""}`} style={{ borderLeftColor: casaDaTarefa(t).cor }} onClick={() => abrirTarefa(t)}>
+            <div key={t.chave} className="card-com-acao">
+            <button type="button" className={`card-tarefa ${s === "atrasada" ? "atrasada" : ""}`} style={{ borderLeftColor: casaDaTarefa(t).cor }} onClick={() => abrirTarefa(t)}>
               <span className="linha-card">
                 {agencia && t.andamento ? (
                   <i className={`sinal arte-${t.andamento}`} aria-hidden="true" />
@@ -190,6 +208,12 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
               <span>{t.tipo === "pedido" ? t.evento.nome : `${casaDaTarefa(t).curto} · ${t.evento.nome}`}</span>
               <span className={resp ? "mencao" : "sem-resp"}>{resp ? `@${resp}` : "sem responsável"}</span>
             </button>
+            {t.item && !agencia && (
+              <button type="button" className={`marcar-feito ${t.feito ? "sim" : ""}`} disabled={marcando === t.chave} onClick={() => marcarFeito(t)}>
+                {t.feito ? `✓ ${t.tipo === "post" ? "Postado" : "Pronto"} · desfazer` : t.tipo === "post" ? "Marcar como postado" : "Marcar como pronto"}
+              </button>
+            )}
+            </div>
           );
         })}
         {eventos.length === 0 && postar.length === 0 && ts.length === 0 && <span className="nada">—</span>}

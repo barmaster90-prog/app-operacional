@@ -7,7 +7,6 @@ import {
   REDES,
   novoIdItem,
   type Divulgacao,
-  type ListaFeita,
   type Postagem,
   type Video,
 } from "../lib/divulgacao.ts";
@@ -107,24 +106,6 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
     }
   }
 
-  // Marcar "postado"/"pronto" grava na hora, sem mexer no que ainda está sendo editado.
-  async function marcar(lista: ListaFeita, id: string, feito: boolean) {
-    if (!d) return;
-    if (lista === "postagens") mudarPostagem(id, { feito });
-    else mudarVideo(id, { feito });
-    const salvo = salvoRef.current;
-    if (!salvo || !(salvo[lista] as { id: string }[]).some((x) => x.id === id)) return;
-    setErro("");
-    try {
-      const novo = await banco.marcarFeito(evento.id, lista, id, feito);
-      salvoRef.current = novo;
-      setAviso(feito ? "Marcado como feito." : "Desmarcado.");
-      onMudou(novo);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível marcar.");
-    }
-  }
-
   async function copiarLegenda() {
     try {
       await navigator.clipboard.writeText(d?.legenda ?? "");
@@ -166,10 +147,8 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
             {d.postagens.map((p) => (
               <li key={p.id} className={`postagem ${p.feito ? "feito" : ""}`}>
                 <div className="item-topo">
-                  <label className="check">
-                    <input type="checkbox" checked={p.feito} onChange={(e) => marcar("postagens", p.id, e.target.checked)} />
-                    <span>{p.feito ? "Postado" : "A postar"}</span>
-                  </label>
+                  {/* Marca-se "postado" no calendário do Marketing e nas Pendências, sem abrir o evento. */}
+                  <span className={`selo-feito ${p.feito ? "sim" : ""}`}>{p.feito ? "Postado" : "A postar"}</span>
                   <button type="button" className="link" onClick={() => set("postagens", d.postagens.filter((x) => x.id !== p.id))}>remover</button>
                 </div>
                 <div className="postagem-campos">
@@ -247,10 +226,7 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
               <li key={v.id} className={`video ${v.feito ? "feito" : ""}`}>
                 <div className="video-topo">
                   <strong>Vídeo {i + 1}</strong>
-                  <label className="check">
-                    <input type="checkbox" checked={v.feito} onChange={(e) => marcar("videos", v.id, e.target.checked)} />
-                    <span>{v.feito ? "Pronto" : "A produzir"}</span>
-                  </label>
+                  <span className={`selo-feito ${v.feito ? "sim" : ""}`}>{v.feito ? "Pronto" : "A produzir"}</span>
                   <button type="button" className="link" onClick={() => set("videos", d.videos.filter((x) => x.id !== v.id))}>remover</button>
                 </div>
                 <div className="campos">

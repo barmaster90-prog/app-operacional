@@ -278,6 +278,7 @@ create or replace function public.marcar_feito(p_evento uuid, p_lista text, p_it
   language plpgsql security definer set search_path = public as $$
 begin
   if auth.uid() is null then raise exception 'Faça login.'; end if;
+  if public.e_agencia() then raise exception 'A agência não marca posts e vídeos.'; end if;
   if p_lista = 'postagens' then
     update public.divulgacoes set postagens = (
       select coalesce(jsonb_agg(case when x->>'id' = p_item then jsonb_set(x, '{feito}', to_jsonb(p_valor)) else x end order by n), '[]'::jsonb)
