@@ -58,12 +58,15 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props
     : [];
 
   const [marcando, setMarcando] = useState("");
+  // O último marcado sai da lista; fica aqui para poder desfazer um clique sem querer.
+  const [ultimo, setUltimo] = useState<Tarefa | null>(null);
   /** Post postado / vídeo pronto com um clique, sem abrir o evento. */
-  async function marcarFeito(t: Tarefa) {
+  async function marcarFeito(t: Tarefa, feito = true) {
     if (!t.item) return;
     setMarcando(t.chave);
     try {
-      await banco.marcarFeito(t.evento.id, t.item.lista, t.item.id, true);
+      await banco.marcarFeito(t.evento.id, t.item.lista, t.item.id, feito);
+      setUltimo(feito ? t : null);
       onMudou?.();
     } finally {
       setMarcando("");
@@ -77,6 +80,15 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props
 
   return (
     <section className="pendencias">
+      {ultimo && (
+        <div className="desfazer" role="status">
+          <span>
+            {ultimo.tipo === "post" ? "Marcado como postado" : "Marcado como pronto"}: {ultimo.titulo} · {ultimo.evento.nome}
+          </span>
+          <button type="button" disabled={marcando === ultimo.chave} onClick={() => marcarFeito(ultimo, false)}>Desfazer</button>
+          <button type="button" className="link" aria-label="Fechar" onClick={() => setUltimo(null)}>✕</button>
+        </div>
+      )}
       <div className="titulo-visao">
         <div>
           <h2>Pendências</h2>
