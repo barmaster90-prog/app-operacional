@@ -29,7 +29,7 @@ test("material antigo com um link só vira lista", () => {
 
 test("resumo da divulgação", async () => {
   const { resumoDivulgacao } = await import("./divulgacao.ts");
-  assert.equal(resumoDivulgacao({ postagens: [], videos: [] }), "Nada planejado ainda");
+  assert.equal(resumoDivulgacao({ postagens: [], videos: [] }), "Informações para divulgação");
   assert.equal(
     resumoDivulgacao({
       postagens: [{ id: "a", rede: "Instagram", formato: "Feed", feito: true }, { id: "b", rede: "TikTok", formato: "Reels", feito: false }],

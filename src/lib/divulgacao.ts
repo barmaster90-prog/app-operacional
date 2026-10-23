@@ -61,5 +61,5 @@ export function resumoDivulgacao(d: Pick<Divulgacao, "postagens" | "videos">): s
   const partes: string[] = [];
   if (d.postagens.length) partes.push(`${d.postagens.filter((p) => p.feito).length}/${d.postagens.length} postagens`);
   if (d.videos.length) partes.push(`${d.videos.filter((v) => v.feito).length}/${d.videos.length} vídeos`);
-  return partes.join(" · ") || "Nada planejado ainda";
+  return partes.join(" · ") || "Informações para divulgação";
 }
