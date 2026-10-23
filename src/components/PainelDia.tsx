@@ -18,8 +18,6 @@ interface Props {
   especiais: DataEspecial[];
   pedidos: Pedido[];
   podeEditar: boolean;
-  /** Abre um pedido de arte novo para esta data (com o nome da data comercial, se tiver). */
-  onPedirArte(nome?: string): void;
   onAbrirPedido(p: Pedido): void;
   onFechar(): void;
   onNovo(): void;
@@ -27,9 +25,8 @@ interface Props {
   onDatasMudaram(): void;
 }
 
-export function PainelDia({ data, eventos, especiais, pedidos, podeEditar, onPedirArte, onAbrirPedido, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
+export function PainelDia({ data, eventos, especiais, pedidos, podeEditar, onAbrirPedido, onFechar, onNovo, onEditar, onDatasMudaram }: Props) {
   const [novaData, setNovaData] = useState<{ nome: string; tipo: TipoData; precisa_arte: boolean; avisar_dias: number } | null>(null);
-  const comercial = especiais.find((d) => d.tipo === "comercial") ?? especiais[0];
   const [apagando, setApagando] = useState<string | null>(null);
 
   async function salvarData(ev: FormEvent) {
@@ -106,11 +103,6 @@ export function PainelDia({ data, eventos, especiais, pedidos, podeEditar, onPed
       )}
 
       {podeEditar && <button className="primario largo" onClick={onNovo}>+ Adicionar evento</button>}
-      {podeEditar && (
-        <button className="largo" onClick={() => onPedirArte(comercial?.nome)}>
-          + Pedir arte para esta data
-        </button>
-      )}
 
       {eventos.length === 0 ? (
         <p className="vazio">Nenhum evento nesta data.</p>

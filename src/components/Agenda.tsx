@@ -377,7 +377,6 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
             especiais={datasPorDia.get(diaAberto) ?? []}
             pedidos={pedidosPorDia.get(diaAberto) ?? []}
             podeEditar={ehGestao(usuario)}
-            onPedirArte={(nome?: string) => novoPedido({ titulo: nome ?? "", uso: diaAberto })}
             onAbrirPedido={setPedidoAberto}
             onFechar={() => setDiaAberto(null)}
             onNovo={() => novoEvento(diaAberto)}
