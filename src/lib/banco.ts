@@ -324,10 +324,10 @@ function bancoSupabase(sb: SupabaseClient): Banco {
 
 /** Modo demonstração: guarda só neste navegador. Serve para ver o app antes de criar o Supabase. */
 function bancoDemo(): Banco {
-  // v3: começa vazio, sem os eventos importados da planilha (a pedido do usuário, 23/10/2026).
-  const CHAVE = "app-operacional-demo-v3";
+  // v4: zerado de novo antes de ir para o banco real (a pedido do usuário, 23/10/2026).
+  const CHAVE = "app-operacional-demo-v4";
   try {
-    localStorage.removeItem("app-operacional-demo-v2");
+    for (const antiga of ["app-operacional-demo-v2", "app-operacional-demo-v3"]) localStorage.removeItem(antiga);
   } catch {
     /* sem armazenamento */
   }
