@@ -15,6 +15,7 @@ import { MaterialEvento } from "./MaterialEvento.tsx";
 import { lembretesDeArte, pedidoVazio, type Pedido } from "../lib/pedidos.ts";
 import type { Membro } from "../lib/equipe.ts";
 import type { Aviso, Destino } from "../lib/avisos.ts";
+import { situacaoArte } from "../lib/material.ts";
 import { destinoDaTarefa, montarTarefas, situacao, type Tarefa } from "../lib/tarefas.ts";
 
 const CHAVE_ABA = "app-operacional-aba";
@@ -343,7 +344,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
                         style={{ background: casa(e.casas[0]).cor, borderRight: e.casas[1] ? `6px solid ${casa(e.casas[1]).cor}` : undefined }}
                         title={`${rotuloCasas(e)}: ${e.nome}`}
                       >
-                        {e.data >= hoje && <span className={`sinal ${e.em_producao ? "sim" : "nao"}`} aria-hidden="true" />}
+                        {e.data >= hoje && <span className={`sinal arte-${situacaoArte({ em_producao: e.em_producao, finalizado: e.arte_finalizada })}`} aria-hidden="true" />}
                         {(aba === "geral" || casa(e.casas[0]).aba !== aba) && <b>{rotuloCasas(e)}</b>} {e.nome}
                       </span>
                     ))}

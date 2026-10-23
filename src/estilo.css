@@ -491,3 +491,16 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
   .painel-marketing .especial { display: block; }
 }
 .icone.novo { background: #7cc4ff; }
+
+/* Situação da arte: vermelho em aberto, amarelo em produção, verde finalizado */
+.sinal.arte-aberto { background: var(--perigo); }
+.sinal.arte-producao { background: var(--feriado); }
+.sinal.arte-finalizado { background: #3ccf7a; }
+.producao.arte-aberto { border-color: #6b2a2d; background: #2a1719; }
+.producao.arte-aberto .sinal { background: var(--perigo); }
+.producao.arte-producao { border-color: #6b5520; background: #2b2410; }
+.producao.arte-producao .sinal { background: var(--feriado); }
+.producao.arte-finalizado { border-color: #24603f; background: #14281d; }
+.producao.arte-finalizado .sinal { background: #3ccf7a; }
+.botoes-situacao { display: flex; flex-wrap: wrap; gap: 8px; }
+.so-agencia { font-style: italic; }

@@ -7,6 +7,7 @@ import { MaterialEvento } from "./MaterialEvento.tsx";
 import { DivulgacaoEvento } from "./DivulgacaoEvento.tsx";
 import { ConversaEvento } from "./ConversaEvento.tsx";
 import type { Destino } from "../lib/avisos.ts";
+import { NOME_SITUACAO_ARTE, situacaoArte, type SituacaoArte } from "../lib/material.ts";
 import { resumoDivulgacao } from "../lib/divulgacao.ts";
 
 interface Props {
@@ -28,7 +29,7 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou, a
   const [abrirConversa, setAbrirConversa] = useState(abrir === "conversa");
   const [mensagens, setMensagens] = useState<number | null>(null);
   const [resumo, setResumo] = useState("");
-  const [emProducao, setEmProducao] = useState(Boolean(evento.em_producao));
+  const [arte, setArte] = useState<SituacaoArte>(situacaoArte({ em_producao: evento.em_producao, finalizado: evento.arte_finalizada }));
   useEffect(() => {
     if (!evento.id) return;
     banco.divulgacao(evento.id).then((d) => setResumo(resumoDivulgacao(d))).catch(() => setResumo(""));
@@ -57,9 +58,9 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou, a
 
         <div className="secoes">
           <button type="button" className="secao" onClick={() => setAbrirMaterial(true)}>
-            <span className={`sinal ${emProducao ? "sim" : "nao"}`} aria-hidden="true" />
+            <span className={`sinal arte-${arte}`} aria-hidden="true" />
             <strong>Material</strong>
-            <small>{emProducao ? "Arte em produção" : "Arte em aberto"}</small>
+            <small>Arte: {NOME_SITUACAO_ARTE[arte].toLowerCase()}</small>
           </button>
           {verDivulgacao && (
             <button type="button" className="secao" onClick={() => setAbrirDivulgacao(true)}>
@@ -101,7 +102,7 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou, a
             datasExtras={datasExtras}
             onFechar={() => setAbrirMaterial(false)}
             onMudou={(m) => {
-              setEmProducao(m.em_producao);
+              setArte(situacaoArte(m));
               onMudou();
             }}
           />

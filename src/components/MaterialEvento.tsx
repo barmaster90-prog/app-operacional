@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { banco, ehAgencia, ehGestao, type Usuario } from "../lib/banco.ts";
 import { CASAS, casa, type CasaId, type Evento } from "../lib/tipos.ts";
-import { FORMATOS_ANIMADO, topoDaArte, type Animado, type Material } from "../lib/material.ts";
+import { FORMATOS_ANIMADO, NOME_SITUACAO_ARTE, situacaoArte, situacaoGravada, topoDaArte, type Animado, type Material, type SituacaoArte } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { baixarArquivo } from "../lib/baixar.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
@@ -29,11 +29,14 @@ const temBriefing = (m: Material | null | undefined) =>
   Boolean(m && (m.descricao?.trim() || m.ideia?.trim() || m.anexos.length || m.links_fotos.length));
 const trechoBriefing = (m: Material) => (m.descricao?.trim() || m.ideia?.trim() || "").slice(0, 120) || undefined;
 
-type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "entregue" | "criado_por" | "criado_por_id" | "criado_em">;
+type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "criado_por" | "criado_por_id" | "criado_em">;
 
 const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "");
 
 export const nomeDasCasas = (casas: CasaId[]) => (casas.length === 0 ? "Todas as casas" : casas.map((c) => casa(c).nome).join(" + "));
+
+/** "Finalizado por Fulano em 23/10, 20:33", sem pedaços vazios. */
+const marcadoPor = (oque: string, por?: string, em?: string) => [oque, por && `por ${por}`, em && `em ${quando(em)}`].filter(Boolean).join(" ") + ".";
 
 function quando(iso?: string): string {
   if (!iso) return "";
@@ -61,12 +64,12 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     casas: pedido?.casas ?? [],
     pecas: pedido?.pecas ?? [],
     uso: pedido?.uso,
-    entregue: pedido?.entregue ?? false,
     criado_por: pedido?.criado_por,
     criado_por_id: pedido?.criado_por_id,
     criado_em: pedido?.criado_em,
   }));
   const [apagar, setApagar] = useState(false);
+  const agencia = ehAgencia(usuario);
   const alvo: Alvo = evento ? { id: evento.id, nome: evento.nome, data: evento.data } : { id: pedidoId, nome: cab.titulo || "Pedido de arte", pedido: true };
   const destino = evento ? "material" : "pedido";
 
@@ -96,6 +99,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     );
   }
 
+  const situacao = situacaoArte(m);
   const set = <K extends keyof Material>(k: K, v: Material[K]) => setM((x) => (x ? { ...x, [k]: v } : x));
   const topo = evento ? topoDaArte(evento.data, evento.horario, datasExtras) : "";
   const casas = evento ? evento.casas.map((c) => casa(c).nome).join(" + ") + (evento.local ? ` · ${evento.local}` : "") : nomeDasCasas(cab.casas);
@@ -163,25 +167,6 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     }
   }
 
-  /** Muda só a situação do pedido (entregue), guardando o resto como está. */
-  async function gravarCab(mudanca: Partial<Cabecalho>, msg: string) {
-    if (!m) return;
-    const novoCab = { ...cab, ...mudanca };
-    setCab(novoCab);
-    setSalvando(true);
-    setErro("");
-    try {
-      const { evento_id: _id, ...briefing } = salvoRef.current ?? m;
-      const p = await banco.salvarPedido({ ...briefing, ...novoCab, id: pedidoId });
-      onPedido?.(p);
-      setAviso(msg);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
   async function apagarPedido() {
     if (!apagar) return setApagar(true);
     try {
@@ -193,30 +178,31 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
     }
   }
 
-  async function alternarProducao() {
+  /** Só a Agência muda a situação: em aberto, em produção ou finalizado. */
+  async function marcar(nova: SituacaoArte) {
     if (!m) return;
-    const valor = !m.em_producao;
     setSalvando(true);
     setErro("");
     try {
-      const salvo = evento ? await banco.marcarProducao(evento.id, valor) : materialDoPedido(await banco.marcarProducaoPedido(pedidoId, valor));
-      // Guarda o que a Gestão ainda não salvou nos outros campos.
-      const novo = { ...m, em_producao: salvo.em_producao, em_producao_por: salvo.em_producao_por, em_producao_em: salvo.em_producao_em };
+      const salvo = evento ? await banco.marcarArte(evento.id, nova) : materialDoPedido(await banco.marcarArtePedido(pedidoId, nova));
+      // Guarda o que ainda não foi salvo nos outros campos.
+      const novo = { ...m, ...situacaoGravada(salvo) } as Material;
       setM(novo);
-      setAviso(valor ? "Marcado como em produção." : "Voltou para em aberto.");
+      setAviso(nova === "finalizado" ? "Marcado como finalizado." : nova === "producao" ? "Marcado como em produção." : "Voltou para em aberto.");
       onMudou?.(novo);
       if (!evento) onPedido?.({ ...(novo as unknown as Pedido), ...cab, id: pedidoId });
-      if (valor) {
-        // Avisa a Gestão e quem é responsável pela arte.
-        const para = new Set([...equipe.filter((x) => x.papel === "gestao").map((x) => x.id), m.responsavel_id ?? ""]);
+      if (nova !== "aberto") {
+        // Avisa a Gestão, quem é responsável pela arte e quem fez o pedido.
+        const para = new Set([...equipe.filter((x) => x.papel === "gestao").map((x) => x.id), m.responsavel_id ?? "", cab.criado_por_id ?? ""]);
         para.delete(usuario.id);
         para.delete("");
+        const fim = nova === "finalizado";
         const lista: AvisoNovo[] = [...para].map((id) => ({
           para_id: id,
           de_nome: usuario.nome,
           tipo: "producao",
-          titulo: `Arte em produção · ${alvo.nome}`,
-          texto: `${usuario.nome} colocou a arte em produção.`,
+          titulo: `${fim ? "Arte finalizada" : "Arte em produção"} · ${alvo.nome}`,
+          texto: `${usuario.nome} ${fim ? "finalizou a arte" : "colocou a arte em produção"}.`,
           ...(evento ? { evento_id: evento.id, evento_data: evento.data } : { pedido_id: pedidoId }),
           abrir: destino,
         }));
@@ -392,38 +378,33 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
           </section>
         )}
 
-        {cab.entregue && !evento ? (
-          <div className="producao sim">
-            <span className="sinal" aria-hidden="true" />
-            <div>
-              <strong>Entregue</strong>
-              <small>A arte já foi entregue.</small>
-            </div>
-            {!leitura && <button type="button" onClick={() => gravarCab({ entregue: false }, "Voltou para em produção.")} disabled={salvando}>Desfazer</button>}
-          </div>
-        ) : (
-        <div className={`producao ${m.em_producao ? "sim" : "nao"}`}>
+        <div className={`producao arte-${situacao}`}>
           <span className="sinal" aria-hidden="true" />
           <div>
-            <strong>{m.em_producao ? "Em produção" : "Em aberto"}</strong>
+            <strong>{NOME_SITUACAO_ARTE[situacao]}</strong>
             <small>
-              {m.em_producao
-                ? `Marcado por ${m.em_producao_por ?? "—"} em ${quando(m.em_producao_em)}`
-                : "Esta arte ainda não foi colocada em produção."}
+              {situacao === "finalizado"
+                ? marcadoPor("Finalizado", m.finalizado_por, m.finalizado_em)
+                : situacao === "producao"
+                  ? marcadoPor("Colocado em produção", m.em_producao_por, m.em_producao_em)
+                  : "Esta arte ainda não foi colocada em produção."}
             </small>
           </div>
-          {evento || pedidoId ? (
-            <button type="button" className={m.em_producao ? "" : "primario"} onClick={alternarProducao} disabled={salvando}>
-              {m.em_producao ? "Voltar para em aberto" : "Coloquei em produção"}
-            </button>
-          ) : (
-            <small>Envie o pedido para a agência poder marcar.</small>
-          )}
-          {!evento && m.em_producao && !leitura && (
-            <button type="button" className="primario" onClick={() => gravarCab({ entregue: true }, "Marcado como entregue.")} disabled={salvando}>Marcar entregue</button>
+          {!agencia ? (
+            <small className="so-agencia">Só a agência muda a situação.</small>
+          ) : !evento && !pedidoId ? null : (
+            <span className="botoes-situacao">
+              {situacao === "aberto" && <button type="button" className="primario" onClick={() => marcar("producao")} disabled={salvando}>Coloquei em produção</button>}
+              {situacao === "producao" && (
+                <>
+                  <button type="button" onClick={() => marcar("aberto")} disabled={salvando}>Voltar para em aberto</button>
+                  <button type="button" className="primario" onClick={() => marcar("finalizado")} disabled={salvando}>Finalizei</button>
+                </>
+              )}
+              {situacao === "finalizado" && <button type="button" onClick={() => marcar("producao")} disabled={salvando}>Voltar para em produção</button>}
+            </span>
           )}
         </div>
-        )}
 
         <div className="responsavel-linha">
           {leitura ? (

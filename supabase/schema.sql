@@ -84,9 +84,15 @@ create table if not exists public.materiais (
   animado jsonb not null default '{"links": []}'::jsonb, -- { formato, duracao, trilha, links, obs }
   em_producao boolean not null default false,
   em_producao_por text,
-  em_producao_em timestamptz
+  em_producao_em timestamptz,
+  finalizado boolean not null default false,
+  finalizado_por text,
+  finalizado_em timestamptz
 );
 
+alter table public.materiais add column if not exists finalizado boolean not null default false;
+alter table public.materiais add column if not exists finalizado_por text;
+alter table public.materiais add column if not exists finalizado_em timestamptz;
 alter table public.materiais add column if not exists responsavel_id uuid references public.perfis (id) on delete set null;
 alter table public.materiais add column if not exists prazo date;
 alter table public.materiais add column if not exists animado jsonb not null default '{"links": []}'::jsonb;
@@ -154,10 +160,17 @@ create table if not exists public.pedidos_arte (
   em_producao boolean not null default false,
   em_producao_por text,
   em_producao_em timestamptz,
-  entregue boolean not null default false,
+  finalizado boolean not null default false, -- marcado pela agência
+  finalizado_por text,
+  finalizado_em timestamptz,
   criado_por text,
   criado_em timestamptz not null default now()
 );
+
+alter table public.pedidos_arte add column if not exists finalizado boolean not null default false;
+alter table public.pedidos_arte add column if not exists finalizado_por text;
+alter table public.pedidos_arte add column if not exists finalizado_em timestamptz;
+alter table public.pedidos_arte drop column if exists entregue;
 
 -- Datas comerciais podem pedir um lembrete de arte.
 alter table public.datas_especiais add column if not exists precisa_arte boolean not null default false;
@@ -283,42 +296,78 @@ end $$;
 revoke all on function public.marcar_feito(uuid, text, text, boolean) from public, anon;
 grant execute on function public.marcar_feito(uuid, text, text, boolean) to authenticated;
 
--- A Produção só pode marcar ou desmarcar "em produção", por esta função.
-create or replace function public.marcar_producao(p_evento uuid, p_valor boolean) returns void
-  language plpgsql security definer set search_path = public as $$
-declare
-  quem text;
+-- Situação da arte: em aberto (vermelho), em produção (amarelo), finalizado (verde). Só a Agência muda.
+drop function if exists public.marcar_producao(uuid, boolean);
+drop function if exists public.marcar_producao_pedido(uuid, boolean);
+
+-- Quem salva o briefing não mexe na situação: ela só muda pelas funções abaixo.
+create or replace function public.proteger_situacao() returns trigger language plpgsql as $$
 begin
-  if auth.uid() is null then raise exception 'Faça login.'; end if;
-  select coalesce(nome, 'equipe') into quem from public.perfis where id = auth.uid();
-  insert into public.materiais (evento_id, em_producao, em_producao_por, em_producao_em)
-    values (p_evento, p_valor, case when p_valor then quem end, case when p_valor then now() end)
-  on conflict (evento_id) do update set
-    em_producao = excluded.em_producao,
-    em_producao_por = excluded.em_producao_por,
-    em_producao_em = excluded.em_producao_em;
+  if coalesce(current_setting('app.marcando_arte', true), '') <> '1' then
+    if tg_op = 'INSERT' then
+      new.em_producao := false; new.em_producao_por := null; new.em_producao_em := null;
+      new.finalizado := false; new.finalizado_por := null; new.finalizado_em := null;
+    else
+      new.em_producao := old.em_producao; new.em_producao_por := old.em_producao_por; new.em_producao_em := old.em_producao_em;
+      new.finalizado := old.finalizado; new.finalizado_por := old.finalizado_por; new.finalizado_em := old.finalizado_em;
+    end if;
+  end if;
+  return new;
 end $$;
 
-revoke all on function public.marcar_producao(uuid, boolean) from public, anon;
-grant execute on function public.marcar_producao(uuid, boolean) to authenticated;
+drop trigger if exists proteger_situacao on public.materiais;
+create trigger proteger_situacao before insert or update on public.materiais
+  for each row execute function public.proteger_situacao();
+drop trigger if exists proteger_situacao on public.pedidos_arte;
+create trigger proteger_situacao before insert or update on public.pedidos_arte
+  for each row execute function public.proteger_situacao();
 
--- Mesma coisa para os pedidos de arte.
-create or replace function public.marcar_producao_pedido(p_pedido uuid, p_valor boolean) returns void
+create or replace function public.marcar_arte(p_evento uuid, p_situacao text) returns void
   language plpgsql security definer set search_path = public as $$
 declare
   quem text;
 begin
-  if auth.uid() is null then raise exception 'Faça login.'; end if;
-  select coalesce(nome, 'equipe') into quem from public.perfis where id = auth.uid();
+  if not public.e_agencia() then raise exception 'Só a agência muda a situação da arte.'; end if;
+  if p_situacao not in ('aberto', 'producao', 'finalizado') then raise exception 'Situação inválida.'; end if;
+  select coalesce(nome, 'agência') into quem from public.perfis where id = auth.uid();
+  perform set_config('app.marcando_arte', '1', true);
+  insert into public.materiais (evento_id) values (p_evento) on conflict (evento_id) do nothing;
+  update public.materiais set
+    em_producao = p_situacao <> 'aberto',
+    em_producao_por = case when p_situacao = 'aberto' then null when em_producao then em_producao_por else quem end,
+    em_producao_em = case when p_situacao = 'aberto' then null when em_producao then em_producao_em else now() end,
+    finalizado = p_situacao = 'finalizado',
+    finalizado_por = case when p_situacao <> 'finalizado' then null when finalizado then finalizado_por else quem end,
+    finalizado_em = case when p_situacao <> 'finalizado' then null when finalizado then finalizado_em else now() end
+  where evento_id = p_evento;
+  perform set_config('app.marcando_arte', '', true);
+end $$;
+
+revoke all on function public.marcar_arte(uuid, text) from public, anon;
+grant execute on function public.marcar_arte(uuid, text) to authenticated;
+
+create or replace function public.marcar_arte_pedido(p_pedido uuid, p_situacao text) returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  quem text;
+begin
+  if not public.e_agencia() then raise exception 'Só a agência muda a situação da arte.'; end if;
+  if p_situacao not in ('aberto', 'producao', 'finalizado') then raise exception 'Situação inválida.'; end if;
+  select coalesce(nome, 'agência') into quem from public.perfis where id = auth.uid();
+  perform set_config('app.marcando_arte', '1', true);
   update public.pedidos_arte set
-    em_producao = p_valor,
-    em_producao_por = case when p_valor then quem end,
-    em_producao_em = case when p_valor then now() end
+    em_producao = p_situacao <> 'aberto',
+    em_producao_por = case when p_situacao = 'aberto' then null when em_producao then em_producao_por else quem end,
+    em_producao_em = case when p_situacao = 'aberto' then null when em_producao then em_producao_em else now() end,
+    finalizado = p_situacao = 'finalizado',
+    finalizado_por = case when p_situacao <> 'finalizado' then null when finalizado then finalizado_por else quem end,
+    finalizado_em = case when p_situacao <> 'finalizado' then null when finalizado then finalizado_em else now() end
   where id = p_pedido;
+  perform set_config('app.marcando_arte', '', true);
 end $$;
 
-revoke all on function public.marcar_producao_pedido(uuid, boolean) from public, anon;
-grant execute on function public.marcar_producao_pedido(uuid, boolean) to authenticated;
+revoke all on function public.marcar_arte_pedido(uuid, text) from public, anon;
+grant execute on function public.marcar_arte_pedido(uuid, text) to authenticated;
 
 -- Imagens anexadas ao material ficam num bucket privado.
 insert into storage.buckets (id, name, public) values ('materiais', 'materiais', false)

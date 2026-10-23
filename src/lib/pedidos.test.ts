@@ -23,7 +23,7 @@ test("Data sem lembrete ou que já passou não aparece", () => {
 });
 
 test("Situação do pedido", () => {
-  assert.equal(situacaoPedido({ entregue: false, em_producao: false }), "aberto");
-  assert.equal(situacaoPedido({ entregue: false, em_producao: true }), "producao");
-  assert.equal(situacaoPedido({ entregue: true, em_producao: true }), "entregue");
+  assert.equal(situacaoPedido({ finalizado: false, em_producao: false }), "aberto");
+  assert.equal(situacaoPedido({ finalizado: false, em_producao: true }), "producao");
+  assert.equal(situacaoPedido({ finalizado: true, em_producao: true }), "finalizado");
 });

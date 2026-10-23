@@ -1,7 +1,7 @@
 import { somarDias, type DataISO } from "./datas.ts";
 import { casa, type Evento } from "./tipos.ts";
 import type { Destino } from "./avisos.ts";
-import type { Material } from "./material.ts";
+import { situacaoArte, type Material, type SituacaoArte } from "./material.ts";
 import type { Divulgacao } from "./divulgacao.ts";
 import type { Pedido } from "./pedidos.ts";
 
@@ -17,6 +17,8 @@ export interface Tarefa {
   pedido?: Pedido;
   prazo?: DataISO;
   responsavel_id?: string;
+  /** Arte e pedido: em aberto, em produção ou finalizado (feito = finalizado). */
+  andamento?: SituacaoArte;
   /** O que vai ser postado, quando foi escrito. */
   detalhe?: string;
   feito: boolean;
@@ -32,7 +34,6 @@ export function montarTarefas(
 ): Tarefa[] {
   const lista: Tarefa[] = [];
   for (const p of pedidos) {
-    if (p.entregue) continue;
     lista.push({
       chave: `pedido:${p.id}`,
       tipo: "pedido",
@@ -41,7 +42,8 @@ export function montarTarefas(
       pedido: p,
       prazo: p.prazo,
       responsavel_id: p.responsavel_id,
-      feito: p.em_producao,
+      andamento: situacaoArte(p),
+      feito: p.finalizado,
     });
   }
   for (const e of eventos) {
@@ -53,7 +55,8 @@ export function montarTarefas(
       evento: e,
       prazo: m?.prazo,
       responsavel_id: m?.responsavel_id,
-      feito: Boolean(m?.em_producao ?? e.em_producao),
+      andamento: situacaoArte(m ?? { em_producao: e.em_producao, finalizado: e.arte_finalizada }),
+      feito: situacaoArte(m ?? { em_producao: e.em_producao, finalizado: e.arte_finalizada }) === "finalizado",
     });
     const d = divulgacoes[e.id];
     for (const p of d?.postagens ?? []) {
@@ -94,7 +97,7 @@ export function situacao(t: Tarefa, hoje: DataISO): Situacao {
     if (t.prazo <= somarDias(hoje, 7)) return "semana";
     return "depois";
   }
-  if ((t.tipo === "arte" || t.tipo === "pedido") && t.evento.data && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)) return "sem_prazo";
+  if ((t.tipo === "arte" || t.tipo === "pedido") && t.andamento !== "producao" && t.evento.data && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)) return "sem_prazo";
   return "depois";
 }
 

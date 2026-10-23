@@ -1,5 +1,5 @@
 import { somarDias, type DataISO } from "./datas.ts";
-import { materialVazio, normalizarMaterial, type Material } from "./material.ts";
+import { materialVazio, normalizarMaterial, situacaoArte, type Material, type SituacaoArte } from "./material.ts";
 import type { CasaId } from "./tipos.ts";
 import type { DataEspecial } from "./feriados.ts";
 
@@ -15,7 +15,6 @@ export interface Pedido extends Omit<Material, "evento_id"> {
   pecas: string[];
   /** Quando a arte vai ser usada (aparece no calendário nesse dia). */
   uso?: DataISO;
-  entregue: boolean;
   criado_por?: string;
   /** Quem criou: pode apagar o pedido, além da Gestão. */
   criado_por_id?: string;
@@ -24,14 +23,12 @@ export interface Pedido extends Omit<Material, "evento_id"> {
 
 export const PECAS = ["Feed", "Story", "Reels / Animado", "Carrossel", "Impresso", "Cardápio", "Banner"];
 
-export type SituacaoPedido = "aberto" | "producao" | "entregue";
-
-export const situacaoPedido = (p: Pick<Pedido, "entregue" | "em_producao">): SituacaoPedido =>
-  p.entregue ? "entregue" : p.em_producao ? "producao" : "aberto";
+export type SituacaoPedido = SituacaoArte;
+export const situacaoPedido = situacaoArte;
 
 export function pedidoVazio(campos: Partial<Pedido> = {}): Pedido {
   const { evento_id: _id, ...m } = materialVazio("");
-  return { ...m, id: "", titulo: "", casas: [], pecas: [], entregue: false, ...campos };
+  return { ...m, id: "", titulo: "", casas: [], pecas: [], ...campos };
 }
 
 export function normalizarPedido(bruto: Record<string, unknown>): Pedido {
@@ -39,8 +36,10 @@ export function normalizarPedido(bruto: Record<string, unknown>): Pedido {
   const p = m as unknown as Pedido;
   if (!Array.isArray(p.casas)) p.casas = [];
   if (!Array.isArray(p.pecas)) p.pecas = [];
-  p.entregue = Boolean(p.entregue);
-  p.em_producao = Boolean(p.em_producao);
+  // "entregue" era marcado pelo marketing; virou "finalizado", marcado pela agência (23/10/2026).
+  const antigo = p as Pedido & { entregue?: boolean };
+  p.finalizado = Boolean(p.finalizado || antigo.entregue);
+  delete antigo.entregue;
   return p;
 }
 

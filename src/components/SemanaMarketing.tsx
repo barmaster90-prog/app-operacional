@@ -5,6 +5,7 @@ import { DIAS_SEMANA_CURTO, MESES, dataPorExtenso, diaDaSemana, gradeDoMes, hoje
 import { datasFixasDoAno, type DataEspecial } from "../lib/feriados.ts";
 import { casaDaTarefa, destinoDaTarefa, montarTarefas, situacao, type Tarefa } from "../lib/tarefas.ts";
 import type { Pedido } from "../lib/pedidos.ts";
+import { situacaoArte } from "../lib/material.ts";
 import type { Destino } from "../lib/avisos.ts";
 import { nomeDe, useEquipe } from "./Equipe.tsx";
 
@@ -109,7 +110,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
     return {
       eventos: verEventos ? (fonte?.eventos ?? []).filter((e) => e.data === d) : [],
       // Pedido de arte no dia em que vai ser postado. Postar é com o marketing, não com quem faz a arte,
-      // então aparece mesmo com "Só o que é meu" ligado (e continua aparecendo depois de entregue).
+      // então aparece mesmo com "Só o que é meu" ligado (e continua aparecendo depois de finalizado).
       postar: (fonte?.pedidos ?? []).filter((p) => p.uso === d),
       tarefas: tarefas.filter((t) => t.prazo === d),
       especiais: especiaisPorDia.get(d) ?? [],
@@ -160,7 +161,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
         ))}
         {postar.map((p) => (
           <button type="button" key={p.id} className="evento-noite pedido-dia" onClick={() => abrirPedido(p)}>
-            Postar arte · {p.titulo}{p.entregue ? " · arte entregue" : ""}
+            Postar arte · {p.titulo}{p.finalizado ? " · arte finalizada" : ""}
           </button>
         ))}
         {ts.map((t) => {
@@ -268,7 +269,7 @@ export function SemanaMarketing({ usuario, dados, onAbrir, onVerPendencias }: Pr
                   }),
                   ...postar.map((p) => (
                     <span key={p.id} className="chip chip-pedido" title={`Postar arte: ${p.titulo}`}>
-                      <span className={`sinal ${p.entregue ? "sim" : "a-fazer"}`} aria-hidden="true" />
+                      <span className={`sinal arte-${situacaoArte(p)}`} aria-hidden="true" />
                       <b>Postar</b> {p.titulo}
                     </span>
                   )),

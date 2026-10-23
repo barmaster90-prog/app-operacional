@@ -43,10 +43,56 @@ export interface Material {
   em_producao: boolean;
   em_producao_por?: string;
   em_producao_em?: string;
+  /** A agência terminou a arte. Só a Agência marca. */
+  finalizado: boolean;
+  finalizado_por?: string;
+  finalizado_em?: string;
+}
+
+/** Vermelho: em aberto. Amarelo: em produção. Verde: finalizado. */
+export type SituacaoArte = "aberto" | "producao" | "finalizado";
+
+export const NOME_SITUACAO_ARTE: Record<SituacaoArte, string> = { aberto: "Em aberto", producao: "Em produção", finalizado: "Finalizado" };
+
+export const situacaoArte = (x: { em_producao?: boolean; finalizado?: boolean }): SituacaoArte =>
+  x.finalizado ? "finalizado" : x.em_producao ? "producao" : "aberto";
+
+type ComSituacao = Pick<Material, "em_producao" | "em_producao_por" | "em_producao_em" | "finalizado" | "finalizado_por" | "finalizado_em">;
+
+/** Muda a situação da arte guardando quem marcou e quando (mantém a marca antiga se a etapa já estava feita). */
+export function comSituacao<T extends ComSituacao>(x: T, s: SituacaoArte, quem?: string): T {
+  const agora = new Date().toISOString();
+  const producao = s !== "aberto";
+  const final = s === "finalizado";
+  return {
+    ...x,
+    em_producao: producao,
+    em_producao_por: producao ? (x.em_producao ? x.em_producao_por : quem) : undefined,
+    em_producao_em: producao ? (x.em_producao ? x.em_producao_em : agora) : undefined,
+    finalizado: final,
+    finalizado_por: final ? (x.finalizado ? x.finalizado_por : quem) : undefined,
+    finalizado_em: final ? (x.finalizado ? x.finalizado_em : agora) : undefined,
+  };
+}
+
+const CAMPOS_SITUACAO = ["em_producao", "em_producao_por", "em_producao_em", "finalizado", "finalizado_por", "finalizado_em"] as const;
+
+/** Tira a situação: ela só muda pelo botão da agência, nunca pelo "Salvar" de quem preenche. */
+export function semSituacao<T extends object>(x: T): T {
+  const copia = { ...x } as Record<string, unknown>;
+  for (const c of CAMPOS_SITUACAO) delete copia[c];
+  return copia as T;
+}
+
+/** Só a situação de um material ou pedido já gravado. */
+export function situacaoGravada(x: Partial<ComSituacao> | undefined): Partial<ComSituacao> {
+  const r: Record<string, unknown> = {};
+  for (const c of CAMPOS_SITUACAO) if (x?.[c] !== undefined) r[c] = x[c];
+  return r as Partial<ComSituacao>;
 }
 
 export function materialVazio(eventoId: string): Material {
-  return { evento_id: eventoId, links_fotos: [], anexos: [], animado: { links: [] }, em_producao: false };
+  return { evento_id: eventoId, links_fotos: [], anexos: [], animado: { links: [] }, em_producao: false, finalizado: false };
 }
 
 /** Aceita materiais gravados antes da lista de links (campo único link_fotos). */
@@ -58,6 +104,8 @@ export function normalizarMaterial(bruto: Record<string, unknown>): Material {
   if (!Array.isArray(m.anexos)) m.anexos = [];
   if (!m.animado || typeof m.animado !== "object") m.animado = { links: [] };
   if (!Array.isArray(m.animado.links)) m.animado = { ...m.animado, links: [] };
+  m.em_producao = Boolean(m.em_producao);
+  m.finalizado = Boolean(m.finalizado);
   return m;
 }
 

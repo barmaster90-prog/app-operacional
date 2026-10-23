@@ -9,6 +9,7 @@ import { ConversaEvento } from "./ConversaEvento.tsx";
 import type { Destino } from "../lib/avisos.ts";
 import { resumoDivulgacao } from "../lib/divulgacao.ts";
 import { avisoParaAgencia, enviarAvisos } from "../lib/notificar.ts";
+import { NOME_SITUACAO_ARTE, situacaoArte, type SituacaoArte } from "../lib/material.ts";
 import { useEquipe } from "./Equipe.tsx";
 
 interface Props {
@@ -43,7 +44,7 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
   const [abrirConversa, setAbrirConversa] = useState(abrir === "conversa");
   const [mensagens, setMensagens] = useState<number | null>(null);
   const [resumo, setResumo] = useState("");
-  const [emProducao, setEmProducao] = useState(Boolean(inicial.em_producao));
+  const [arte, setArte] = useState<SituacaoArte>(situacaoArte({ em_producao: inicial.em_producao, finalizado: inicial.arte_finalizada }));
   useEffect(() => {
     if (!ev.id) return;
     banco.divulgacao(ev.id).then((d) => setResumo(resumoDivulgacao(d))).catch(() => setResumo(""));
@@ -208,9 +209,9 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
               onClick={() => setAbrirMaterial(true)}
               title={ev.id ? "" : "Salve o evento primeiro"}
             >
-              <span className={`sinal ${emProducao ? "sim" : "nao"}`} aria-hidden="true" />
+              <span className={`sinal arte-${arte}`} aria-hidden="true" />
               <strong>Material</strong>
-              <small>{!ev.id ? "Salve o evento para abrir" : emProducao ? "Arte em produção" : "Arte em aberto"}</small>
+              <small>{!ev.id ? "Salve o evento para abrir" : `Arte: ${NOME_SITUACAO_ARTE[arte].toLowerCase()}`}</small>
             </button>
             <button type="button" className="secao" disabled={!ev.id} onClick={() => setAbrirDivulgacao(true)}>
               <strong>Divulgação</strong>
@@ -260,7 +261,7 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
             datasExtras={datasExtras}
             onFechar={() => setAbrirMaterial(false)}
             onMudou={(m) => {
-              setEmProducao(m.em_producao);
+              setArte(situacaoArte(m));
               onMudou();
             }}
           />

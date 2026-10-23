@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Evento, EventoNovo } from "./tipos.ts";
 import type { DataEspecial } from "./feriados.ts";
 import type { DataISO } from "./datas.ts";
-import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
+import { comSituacao, semSituacao, situacaoGravada, materialVazio, normalizarMaterial, type Anexo, type Material, type SituacaoArte } from "./material.ts";
 import { divulgacaoVazia, normalizarDivulgacao, type Divulgacao, type ListaFeita } from "./divulgacao.ts";
 import { EQUIPE_EXEMPLO, type Membro } from "./equipe.ts";
 import type { Aviso, AvisoNovo, Comentario } from "./avisos.ts";
@@ -45,8 +45,8 @@ export interface Banco {
   apagarDataEspecial(id: string): Promise<void>;
   material(eventoId: string): Promise<Material>;
   salvarMaterial(m: Material): Promise<Material>;
-  /** Única escrita liberada para a Produção. */
-  marcarProducao(eventoId: string, emProducao: boolean): Promise<Material>;
+  /** Em aberto, em produção ou finalizado. Só a Agência marca. */
+  marcarArte(eventoId: string, situacao: SituacaoArte): Promise<Material>;
   divulgacao(eventoId: string): Promise<Divulgacao>;
   salvarDivulgacao(d: Divulgacao): Promise<Divulgacao>;
   /** Marca uma postagem ou um vídeo como feito. Liberado também para a Produção. */
@@ -70,8 +70,8 @@ export interface Banco {
   /** Gestão cria e edita. Devolve o pedido com o id gravado. */
   salvarPedido(p: Pedido): Promise<Pedido>;
   apagarPedido(id: string): Promise<void>;
-  /** Liberado também para a Produção, como no Material. */
-  marcarProducaoPedido(id: string, emProducao: boolean): Promise<Pedido>;
+  /** Como no Material: só a Agência marca. */
+  marcarArtePedido(id: string, situacao: SituacaoArte): Promise<Pedido>;
 }
 
 export interface DadosPainel {
@@ -133,23 +133,24 @@ function bancoSupabase(sb: SupabaseClient): Banco {
     async eventos(de, ate) {
       const { data, error } = await sb
         .from("eventos")
-        .select("*, materiais(em_producao), financeiro(atracoes)")
+        .select("*, materiais(em_producao, finalizado), financeiro(atracoes)")
         .gte("data", de)
         .lte("data", ate)
         .order("horario");
       if (error) throw error;
       type Um<T> = T | T[] | null;
       const primeiro = <T,>(x: Um<T>) => (Array.isArray(x) ? x[0] : x) ?? undefined;
-      type Linha = Evento & { materiais: Um<{ em_producao: boolean }>; financeiro: Um<{ atracoes: Evento["atracoes"] }> };
+      type Linha = Evento & { materiais: Um<{ em_producao: boolean; finalizado: boolean }>; financeiro: Um<{ atracoes: Evento["atracoes"] }> };
       // `financeiro` só volta para a Gestão (regra no banco); para a Produção vem vazio.
       return (data as Linha[]).map(({ materiais, financeiro, ...e }) => ({
         ...e,
         atracoes: primeiro(financeiro)?.atracoes ?? e.atracoes,
         em_producao: Boolean(primeiro(materiais)?.em_producao),
+        arte_finalizada: Boolean(primeiro(materiais)?.finalizado),
       }));
     },
     async salvarEvento(e) {
-      const { id, em_producao: _p, ...resto } = e as Evento;
+      const { id, em_producao: _p, arte_finalizada: _f, ...resto } = e as Evento;
       // Os nomes das atrações ficam no evento; cachês e observações vão para a tabela `financeiro`.
       const publico = semValores(resto as Evento);
       const linha = { ...resto, atracoes: publico.atracoes };
@@ -188,13 +189,13 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       return { ...m, anexos: await assinar(m.anexos) };
     },
     async salvarMaterial(m) {
-      const paraGravar = { ...m, anexos: m.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
+      const paraGravar = semSituacao({ ...m, anexos: m.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) });
       const { data, error } = await sb.from("materiais").upsert(paraGravar).select().single();
       if (error) throw error;
       return { ...normalizarMaterial(data), anexos: m.anexos };
     },
-    async marcarProducao(eventoId, emProducao) {
-      const { error } = await sb.rpc("marcar_producao", { p_evento: eventoId, p_valor: emProducao });
+    async marcarArte(eventoId, situacao) {
+      const { error } = await sb.rpc("marcar_arte", { p_evento: eventoId, p_situacao: situacao });
       if (error) throw error;
       return this.material(eventoId);
     },
@@ -284,7 +285,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
     },
     async salvarPedido(p) {
       const { id, ...resto } = p;
-      const linha = { ...resto, anexos: p.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) };
+      const linha = semSituacao({ ...resto, anexos: p.anexos.map(({ nome, caminho, url }) => ({ nome, caminho, url: caminho ? "" : url })) });
       const q = id ? sb.from("pedidos_arte").update(linha).eq("id", id) : sb.from("pedidos_arte").insert(linha);
       const { data, error } = await q.select().single();
       if (error) throw error;
@@ -294,8 +295,8 @@ function bancoSupabase(sb: SupabaseClient): Banco {
       const { error } = await sb.from("pedidos_arte").delete().eq("id", id);
       if (error) throw error;
     },
-    async marcarProducaoPedido(id, emProducao) {
-      const { error } = await sb.rpc("marcar_producao_pedido", { p_pedido: id, p_valor: emProducao });
+    async marcarArtePedido(id, situacao) {
+      const { error } = await sb.rpc("marcar_arte_pedido", { p_pedido: id, p_situacao: situacao });
       if (error) throw error;
       const { data, error: e2 } = await sb.from("pedidos_arte").select("*").eq("id", id).single();
       if (e2) throw e2;
@@ -313,7 +314,8 @@ function bancoSupabase(sb: SupabaseClient): Banco {
         const d = primeiro(divulgacoes);
         if (m) res.materiais[e.id] = normalizarMaterial(m);
         if (d) res.divulgacoes[e.id] = normalizarDivulgacao(d);
-        res.eventos.push({ ...e, em_producao: Boolean((m as { em_producao?: boolean } | undefined)?.em_producao) });
+        const s = m as { em_producao?: boolean; finalizado?: boolean } | undefined;
+        res.eventos.push({ ...e, em_producao: Boolean(s?.em_producao), arte_finalizada: Boolean(s?.finalizado) });
       }
       return res;
     },
@@ -394,10 +396,10 @@ function bancoDemo(): Banco {
       return estado.eventos
         .filter((e) => e.data >= de && e.data <= ate)
         .map((e) => (estado.usuario?.papel === "gestao" ? e : semValores(e)))
-        .map((e) => ({ ...e, em_producao: Boolean(estado.materiais?.[e.id]?.em_producao) }));
+        .map((e) => ({ ...e, em_producao: Boolean(estado.materiais?.[e.id]?.em_producao), arte_finalizada: Boolean(estado.materiais?.[e.id]?.finalizado) }));
     },
     async salvarEvento(e) {
-      const { em_producao: _p, ...limpo } = e as Evento;
+      const { em_producao: _p, arte_finalizada: _f, ...limpo } = e as Evento;
       const ev: Evento = { ...limpo, id: e.id ?? novoId(), criado_por: e.criado_por ?? estado.usuario?.nome, atualizado_em: new Date().toISOString() };
       estado.eventos = [...estado.eventos.filter((x) => x.id !== ev.id), ev];
       gravar();
@@ -427,17 +429,17 @@ function bancoDemo(): Banco {
       return m ? normalizarMaterial(m as unknown as Record<string, unknown>) : materialVazio(eventoId);
     },
     async salvarMaterial(m) {
-      estado.materiais = { ...estado.materiais, [m.evento_id]: m };
+      const novo = { ...semSituacao(m), em_producao: false, finalizado: false, ...situacaoGravada(estado.materiais?.[m.evento_id]) };
+      estado.materiais = { ...estado.materiais, [m.evento_id]: novo };
       gravar();
-      return m;
+      return novo;
     },
-    async marcarProducao(eventoId, emProducao) {
-      const atual = await this.material(eventoId);
-      const quem = estado.usuario?.nome;
-      const m: Material = emProducao
-        ? { ...atual, em_producao: true, em_producao_por: quem, em_producao_em: new Date().toISOString() }
-        : { ...atual, em_producao: false, em_producao_por: undefined, em_producao_em: undefined };
-      return this.salvarMaterial(m);
+    async marcarArte(eventoId, situacao) {
+      if (estado.usuario?.papel !== "agencia") throw new Error("Só a agência muda a situação da arte.");
+      const novo = comSituacao(await this.material(eventoId), situacao, estado.usuario?.nome);
+      estado.materiais = { ...estado.materiais, [eventoId]: novo };
+      gravar();
+      return novo;
     },
     async divulgacao(eventoId) {
       const d = estado.divulgacoes?.[eventoId];
@@ -512,7 +514,8 @@ function bancoDemo(): Banco {
       return (estado.pedidos ?? []).map((p) => normalizarPedido(p as unknown as Record<string, unknown>));
     },
     async salvarPedido(p) {
-      const novo = { ...p, id: p.id || novoId(), criado_em: p.criado_em ?? new Date().toISOString(), criado_por: p.criado_por ?? estado.usuario?.nome, criado_por_id: p.criado_por_id ?? estado.usuario?.id };
+      const antes = (estado.pedidos ?? []).find((x) => x.id === p.id);
+      const novo = { ...semSituacao(p), em_producao: false, finalizado: false, ...situacaoGravada(antes), id: p.id || novoId(), criado_em: p.criado_em ?? new Date().toISOString(), criado_por: p.criado_por ?? estado.usuario?.nome, criado_por_id: p.criado_por_id ?? estado.usuario?.id };
       estado.pedidos = [novo, ...(estado.pedidos ?? []).filter((x) => x.id !== novo.id)];
       gravar();
       return novo;
@@ -521,15 +524,11 @@ function bancoDemo(): Banco {
       estado.pedidos = (estado.pedidos ?? []).filter((x) => x.id !== id);
       gravar();
     },
-    async marcarProducaoPedido(id, emProducao) {
+    async marcarArtePedido(id, situacao) {
+      if (estado.usuario?.papel !== "agencia") throw new Error("Só a agência muda a situação da arte.");
       const p = (estado.pedidos ?? []).find((x) => x.id === id);
       if (!p) throw new Error("Salve o pedido antes de marcar.");
-      const novo: Pedido = {
-        ...p,
-        em_producao: emProducao,
-        em_producao_por: emProducao ? estado.usuario?.nome : undefined,
-        em_producao_em: emProducao ? new Date().toISOString() : undefined,
-      };
+      const novo: Pedido = comSituacao(normalizarPedido(p as unknown as Record<string, unknown>), situacao, estado.usuario?.nome);
       estado.pedidos = (estado.pedidos ?? []).map((x) => (x.id === id ? novo : x));
       gravar();
       return novo;

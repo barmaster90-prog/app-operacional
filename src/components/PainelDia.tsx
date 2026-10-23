@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { banco } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { dataPorExtenso, type DataISO } from "../lib/datas.ts";
+import { NOME_SITUACAO_ARTE, situacaoArte } from "../lib/material.ts";
 import type { DataEspecial, TipoData } from "../lib/feriados.ts";
 
 const NOME_TIPO: Record<TipoData, string> = {
@@ -98,8 +99,8 @@ export function PainelDia({ data, eventos, especiais, podeEditar, onFechar, onNo
                   {e.horario && <span>{e.horario}</span>}
                   <span className={`status s-${e.status.toLowerCase()}`}>{e.status}</span>
                   <span className="arte">
-                    <span className={`sinal ${e.em_producao ? "sim" : "nao"}`} aria-hidden="true" />
-                    {e.em_producao ? "Arte em produção" : "Arte em aberto"}
+                    <span className={`sinal arte-${situacaoArte({ em_producao: e.em_producao, finalizado: e.arte_finalizada })}`} aria-hidden="true" />
+                    Arte: {NOME_SITUACAO_ARTE[situacaoArte({ em_producao: e.em_producao, finalizado: e.arte_finalizada })].toLowerCase()}
                   </span>
                 </span>
                 {e.atracoes.length > 0 && <span className="atracoes">{e.atracoes.map((a) => a.nome).join(", ")}</span>}

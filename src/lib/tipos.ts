@@ -67,9 +67,11 @@ export interface Evento {
   atualizado_em?: string;
   /** Vem do Material (somente leitura aqui): a agência já colocou a arte em produção? */
   em_producao?: boolean;
+  /** Vem do Material: a agência finalizou a arte? */
+  arte_finalizada?: boolean;
 }
 
-export type EventoNovo = Omit<Evento, "id" | "em_producao">;
+export type EventoNovo = Omit<Evento, "id" | "em_producao" | "arte_finalizada">;
 
 export function eventoDaAba(e: Evento, aba: AbaId): boolean {
   return aba === "geral" || e.casas.some((c) => casa(c).aba === aba || casa(c).tambemEm?.includes(aba as Exclude<AbaId, "geral">));

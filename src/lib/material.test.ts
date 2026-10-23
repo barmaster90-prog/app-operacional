@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizarMaterial, topoDaArte } from "./material.ts";
+import { comSituacao, materialVazio, normalizarMaterial, semSituacao, situacaoArte, topoDaArte } from "./material.ts";
 
 test("Topo com véspera de feriado", () => {
   assert.equal(topoDaArte("2026-11-01", "22:00"), "01/11 - Domingo - 22h - véspera de feriado");
@@ -53,4 +53,20 @@ test("situação das tarefas", async () => {
     },
   });
   assert.deepEqual(tarefas.map((t) => situacao(t, "2026-10-22")), ["sem_prazo", "atrasada", "semana", "feito"]);
+});
+
+test("situação da arte: aberto, produção e finalizado guardam quem marcou", () => {
+  const m = materialVazio("e1");
+  assert.equal(situacaoArte(m), "aberto");
+  const p = comSituacao(m, "producao", "Agência");
+  assert.equal(situacaoArte(p), "producao");
+  assert.equal(p.em_producao_por, "Agência");
+  const f = comSituacao(p, "finalizado", "Outra");
+  assert.equal(situacaoArte(f), "finalizado");
+  assert.equal(f.em_producao_por, "Agência", "mantém quem colocou em produção");
+  assert.equal(f.finalizado_por, "Outra");
+  const volta = comSituacao(f, "aberto");
+  assert.equal(volta.em_producao, false);
+  assert.equal(volta.finalizado_por, undefined);
+  assert.deepEqual(Object.keys(semSituacao(f)).filter((k) => k.includes("producao") || k.includes("finaliz")), []);
 });

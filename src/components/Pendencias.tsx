@@ -19,7 +19,7 @@ export const destinoDa = destinoDaTarefa;
 const EM_PRODUCAO = {
   id: "feito" as const,
   titulo: "Já em produção",
-  vazio: "Nada em produção. As artes entregues ficam na aba Pedidos, em Entregues.",
+  vazio: "Nada em produção. Os pedidos finalizados ficam na aba Pedidos, em Finalizados.",
 };
 
 const SECOES: { id: Situacao; titulo: string; vazio: string }[] = [
@@ -52,7 +52,7 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
 
   // Para a Agência: o que ela já colocou em produção e ainda vai acontecer.
   const emProducao = agencia
-    ? tarefas.filter((t) => t.feito && (t.tipo === "pedido" || (t.evento.data && t.evento.data >= hoje)))
+    ? tarefas.filter((t) => t.andamento === "producao")
     : [];
 
   async function cobrar(t: Tarefa) {
@@ -107,7 +107,7 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar }: Props) {
                       const c = casaDaTarefa(t);
                       return (
                         <li key={t.chave} className="tarefa">
-                          <span className={`sinal-tarefa ${sec.id}`} aria-hidden="true" />
+                          <span className={`sinal-tarefa ${sec.id === "feito" ? "semana" : sec.id}`} aria-hidden="true" />
                           <div className="oque">
                             <strong>{t.titulo}{t.detalhe && <small> · {t.detalhe}</small>}</strong>
                             <span>

@@ -17,7 +17,7 @@ interface Props {
 const FILTROS: { id: SituacaoPedido; nome: string }[] = [
   { id: "aberto", nome: "Em aberto" },
   { id: "producao", nome: "Em produção" },
-  { id: "entregue", nome: "Entregues" },
+  { id: "finalizado", nome: "Finalizados" },
 ];
 
 const dataCurta = (d?: string) => (d ? d.split("-").reverse().slice(0, 2).join("/") : "");
@@ -88,7 +88,7 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
             return (
               <li key={p.id}>
                 <button type="button" className="pedido" onClick={() => onAbrir(p)}>
-                  <span className={`sinal-tarefa ${s === "aberto" ? "atrasada" : "feito"}`} aria-hidden="true" />
+                  <span className={`sinal-tarefa ${s === "aberto" ? "atrasada" : s === "producao" ? "semana" : "feito"}`} aria-hidden="true" />
                   <span className="pedido-nome">
                     <strong>{p.titulo}</strong>
                     {p.descricao && <small>{p.descricao}</small>}
