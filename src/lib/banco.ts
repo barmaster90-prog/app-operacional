@@ -2,7 +2,6 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Evento, EventoNovo } from "./tipos.ts";
 import type { DataEspecial } from "./feriados.ts";
 import type { DataISO } from "./datas.ts";
-import { EVENTOS_EXEMPLO } from "./exemplo.ts";
 import { materialVazio, normalizarMaterial, type Anexo, type Material } from "./material.ts";
 import { divulgacaoVazia, normalizarDivulgacao, type Divulgacao, type ListaFeita } from "./divulgacao.ts";
 import { EQUIPE_EXEMPLO, type Membro } from "./equipe.ts";
@@ -321,7 +320,13 @@ function bancoSupabase(sb: SupabaseClient): Banco {
 
 /** Modo demonstração: guarda só neste navegador. Serve para ver o app antes de criar o Supabase. */
 function bancoDemo(): Banco {
-  const CHAVE = "app-operacional-demo-v2";
+  // v3: começa vazio, sem os eventos importados da planilha (a pedido do usuário, 23/10/2026).
+  const CHAVE = "app-operacional-demo-v3";
+  try {
+    localStorage.removeItem("app-operacional-demo-v2");
+  } catch {
+    /* sem armazenamento */
+  }
   type Estado = {
     usuario: Usuario | null;
     eventos: Evento[];
@@ -340,7 +345,7 @@ function bancoDemo(): Banco {
     } catch {
       /* navegador sem armazenamento: segue com o exemplo */
     }
-    return { usuario: null, eventos: EVENTOS_EXEMPLO, datas: [] };
+    return { usuario: null, eventos: [], datas: [] };
   };
   let estado = ler();
   if (!estado.equipe?.length) estado.equipe = EQUIPE_EXEMPLO;
@@ -349,12 +354,6 @@ function bancoDemo(): Banco {
     const m = estado.equipe.find((x) => x.papel === (estado.usuario!.papel ?? "gestao")) ?? estado.equipe[0];
     estado.usuario = { ...estado.usuario, id: m.id, nome: m.nome, papel: m.papel };
   }
-  // A Praça deixou de ser local do Don e virou casa própria.
-  estado.eventos = estado.eventos.map((e) =>
-    e.local === "Praça" || (["ex6", "ex33"].includes(e.id) && e.casas.join() === "don")
-      ? { ...e, casas: e.casas.map((c) => (c === "don" ? "praca" : c)), local: undefined }
-      : e,
-  );
   const ouvintes = new Set<(u: Usuario | null) => void>();
   const gravar = () => {
     try {
