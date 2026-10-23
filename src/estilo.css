@@ -512,3 +512,5 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
 .selo-feito.sim { color: #3ccf7a; }
 .desfazer { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #14281d; border: 1px solid #24603f; font-size: 14px; }
 .desfazer span { flex: 1; min-width: 0; }
+.selo-feito { display: inline-flex; align-items: center; gap: 8px; }
+.selo-feito .link { font-size: 12px; font-weight: 400; }

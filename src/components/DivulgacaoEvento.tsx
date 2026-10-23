@@ -7,6 +7,7 @@ import {
   REDES,
   novoIdItem,
   type Divulgacao,
+  type ListaFeita,
   type Postagem,
   type Video,
 } from "../lib/divulgacao.ts";
@@ -106,6 +107,22 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
     }
   }
 
+  /** Volta um post para "a postar" (ou vídeo para "a produzir") marcado sem querer. Grava na hora. */
+  async function desfazer(lista: ListaFeita, id: string) {
+    if (!d) return;
+    if (lista === "postagens") mudarPostagem(id, { feito: false });
+    else mudarVideo(id, { feito: false });
+    setErro("");
+    try {
+      const novo = await banco.marcarFeito(evento.id, lista, id, false);
+      salvoRef.current = novo;
+      setAviso("Desfeito.");
+      onMudou(novo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível desfazer.");
+    }
+  }
+
   async function copiarLegenda() {
     try {
       await navigator.clipboard.writeText(d?.legenda ?? "");
@@ -147,8 +164,11 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
             {d.postagens.map((p) => (
               <li key={p.id} className={`postagem ${p.feito ? "feito" : ""}`}>
                 <div className="item-topo">
-                  {/* Marca-se "postado" no calendário do Marketing e nas Pendências, sem abrir o evento. */}
-                  <span className={`selo-feito ${p.feito ? "sim" : ""}`}>{p.feito ? "Postado" : "A postar"}</span>
+                  {/* Marca-se "postado" no calendário do Marketing e nas Pendências; aqui dá para desfazer. */}
+                  <span className={`selo-feito ${p.feito ? "sim" : ""}`}>
+                    {p.feito ? "Postado" : "A postar"}
+                    {p.feito && <button type="button" className="link" onClick={() => desfazer("postagens", p.id)}>desfazer</button>}
+                  </span>
                   <button type="button" className="link" onClick={() => set("postagens", d.postagens.filter((x) => x.id !== p.id))}>remover</button>
                 </div>
                 <div className="postagem-campos">
@@ -226,7 +246,10 @@ export function DivulgacaoEvento({ evento, usuario, onFechar, onMudou }: Props) 
               <li key={v.id} className={`video ${v.feito ? "feito" : ""}`}>
                 <div className="video-topo">
                   <strong>Vídeo {i + 1}</strong>
-                  <span className={`selo-feito ${v.feito ? "sim" : ""}`}>{v.feito ? "Pronto" : "A produzir"}</span>
+                  <span className={`selo-feito ${v.feito ? "sim" : ""}`}>
+                    {v.feito ? "Pronto" : "A produzir"}
+                    {v.feito && <button type="button" className="link" onClick={() => desfazer("videos", v.id)}>desfazer</button>}
+                  </span>
                   <button type="button" className="link" onClick={() => set("videos", d.videos.filter((x) => x.id !== v.id))}>remover</button>
                 </div>
                 <div className="campos">
