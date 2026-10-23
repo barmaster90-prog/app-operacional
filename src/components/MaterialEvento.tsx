@@ -269,7 +269,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
         m.descricao && `Descrição\n${m.descricao}`,
         m.ideia && `Ideia para a arte\n${m.ideia}`,
         "— — — — —",
-        cab.uso && `Vai ser usada em: ${dataPorExtenso(cab.uso)}`,
+        cab.uso && `Vai ser postado em: ${dataPorExtenso(cab.uso)}`,
         m.prazo && `Entregar até: ${dataPorExtenso(m.prazo)}`,
         cab.pecas.length > 0 && `Peças: ${cab.pecas.join(", ")}`,
       ];
@@ -367,7 +367,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
                   </div>
                 </div>
                 <label>
-                  Vai ser usada em
+                  Vai ser postado em
                   <input id="ped-uso" type="date" value={cab.uso ?? ""} onChange={(e) => setCab({ ...cab, uso: e.target.value || undefined })} />
                   <small>Deixe vazio se não tem data (ex.: cardápio).</small>
                 </label>
