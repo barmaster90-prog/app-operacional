@@ -48,9 +48,10 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props
       .sort((a, b) => dataDaTarefa(a).localeCompare(dataDaTarefa(b)));
   }, [dados, aba, soMinhas, usuario.id, agencia]);
 
-  const por = (s: Situacao) => tarefas.filter((t) => situacao(t, hoje) === s);
+  // A agência vê o que já está em produção num bloco só dela; nas outras listas fica só se atrasou.
+  const por = (s: Situacao) => tarefas.filter((t) => situacao(t, hoje) === s && (!agencia || s === "atrasada" || t.andamento !== "producao"));
   const postsSemana = tarefas.filter((t) => t.tipo === "post" && !t.feito && t.prazo && t.prazo >= hoje && t.prazo <= somarDias(hoje, 7)).length;
-  const artesAbertas = tarefas.filter((t) => (t.tipo === "arte" || t.tipo === "pedido") && !t.feito && t.evento.data && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)).length;
+  const artesAbertas = tarefas.filter((t) => (t.tipo === "arte" || t.tipo === "pedido") && !t.feito && t.andamento !== "producao" && t.evento.data && t.evento.data >= hoje && t.evento.data <= somarDias(hoje, 14)).length;
 
   // Para a Agência: o que ela já colocou em produção e ainda vai acontecer.
   const emProducao = agencia
@@ -141,7 +142,7 @@ export function Pendencias({ usuario, dados, onAbrir, onCobrar, onMudou }: Props
                               <i className="etiqueta" style={{ background: c.cor }}>{c.curto}</i> {t.evento.nome}{t.evento.data && ` · ${dataCurta(t.evento.data)}`}
                             </span>
                           </div>
-                          <span className="prazo">{t.prazo ? (sec.id === "atrasada" ? `venceu ${dataCurta(t.prazo)}` : dataCurta(t.prazo)) : "sem prazo"}</span>
+                          <span className="prazo">{t.prazo ? (sec.id === "atrasada" ? `venceu ${dataCurta(t.prazo)}` : `prazo ${dataCurta(t.prazo)}`) : "sem prazo"}</span>
                           <span className={resp ? "mencao" : "sem-resp"}>{resp ? `@${resp}` : "sem responsável"}</span>
                           <span className="acoes">
                             {t.item && !agencia && (

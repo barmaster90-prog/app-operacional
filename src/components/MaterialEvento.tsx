@@ -264,6 +264,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
         atracoes,
         evento.entrada && `Entrada: ${evento.entrada}`,
         evento.promocao && `Promoção: ${evento.promocao}`,
+        m.prazo && `\nPrazo de entrega da arte: ${dataPorExtenso(m.prazo)}`,
       ]
     : [
         [cab.uso && dataCurta(cab.uso), casas, cab.pecas.join(" + "), cab.titulo].filter(Boolean).join(" - "),
@@ -484,13 +485,13 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
           </fieldset>
           <label>
             Logotipo
-            <input id="mat-logo" readOnly={leitura} value={m.logotipo ?? ""} onChange={(e) => set("logotipo", e.target.value)} placeholder={leitura ? "" : "Link da logo da label"} />
+            {leitura ? <TextoOuLink texto={m.logotipo} /> : (
+              <input id="mat-logo" value={m.logotipo ?? ""} onChange={(e) => set("logotipo", e.target.value)} placeholder="Link da logo da label" />
+            )}
           </label>
           <label>
             Referência para criação
-            {leitura ? (
-              <input id="mat-ref" readOnly value={m.referencia ?? ""} />
-            ) : (
+            {leitura ? <TextoOuLink texto={m.referencia} /> : (
               <CampoTexto id="mat-ref" linha value={m.referencia ?? ""} onChange={(v) => set("referencia", v)} placeholder="Link ou descrição" />
             )}
           </label>
@@ -593,6 +594,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
             <button type="button" className="perigo" onClick={apagarPedido}>{apagar ? "Confirmar: apagar" : "Apagar"}</button>
           )}
           <button type="button" onClick={onFechar}>Fechar</button>
+          {leitura && <button type="button" className="primario" onClick={copiar}>Copiar briefing</button>}
           {!leitura && (
             <button type="button" className="primario" disabled={salvando} onClick={() => gravar(m, evento ? "Material salvo." : pedidoId ? "Pedido salvo." : "Pedido enviado.")}>
               {salvando ? "Salvando…" : evento ? "Salvar material" : pedidoId ? "Salvar pedido" : "Enviar pedido"}
@@ -602,4 +604,12 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
       </div>
     </div>
   );
+}
+
+/** Na leitura: link clicável quando é um endereço, texto quando não é, traço quando está vazio. */
+function TextoOuLink({ texto }: { texto?: string }) {
+  const t = texto?.trim();
+  if (!t) return <div className="texto-lido"><span className="vazio-texto">—</span></div>;
+  if (/^https?:\/\/\S+$/.test(t)) return <div className="texto-lido"><a href={t} target="_blank" rel="noreferrer">{t}</a></div>;
+  return <div className="texto-lido"><TextoComMencoes texto={t} /></div>;
 }

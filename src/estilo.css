@@ -234,6 +234,8 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .ficha dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .links-leitura { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .links-leitura a { color: var(--destaque, #9d8cff); }
+.texto-lido { overflow-wrap: anywhere; }
+.texto-lido a { color: var(--destaque, #9d8cff); }
 
 /* Divulgação */
 .sub-evento { margin: -6px 0 14px; color: var(--texto-2); font-size: 13px; }
@@ -387,7 +389,7 @@ section.pendencias, section.semana { margin-top: 16px; display: flex; flex-direc
   .membro { grid-template-columns: 1fr 1fr; }
   .membro label:first-child { grid-column: 1 / -1; }
   .visoes { overflow-x: auto; gap: 2px; }
-  .visoes button { padding: 8px 9px !important; font-size: 14px; }
+  .visoes button { flex: 1 1 auto; justify-content: center; padding: 8px 4px !important; font-size: 13.5px; gap: 4px; }
   .usuario select.trocar { max-width: 120px; }
   .nav-semana { flex: 1 1 100%; flex-wrap: wrap; }
   .nav-semana h2 { font-size: 17px; flex: 1; text-align: center; }
@@ -487,7 +489,7 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
   .seletor-modo { flex: 1 1 100%; }
   .seletor-modo button { flex: 1; }
   .chip.chip-mkt { border-left-width: 3px; }
-  .chip.chip-mkt .sinal { display: none; }
+  .chip.chip-mkt .sinal { display: inline-block; width: 5px; height: 5px; flex: none; }
   .painel-marketing .especial { display: block; }
 }
 .icone.novo { background: #7cc4ff; }
@@ -514,3 +516,9 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
 .desfazer span { flex: 1; min-width: 0; }
 .selo-feito { display: inline-flex; align-items: center; gap: 8px; }
 .selo-feito .link { font-size: 12px; font-weight: 400; }
+
+/* Celulares estreitos (360px): o topo cabe numa linha só */
+@media (max-width: 380px) {
+  .usuario { gap: 4px 6px; }
+  .usuario select.trocar { max-width: 100px; }
+}
