@@ -156,7 +156,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
           usuario,
           alvoSalvo,
           destino,
-          evento ? "Levar a arte para a produção" : `Pedido de arte${cab.pecas.length ? ` (${cab.pecas.join(", ")})` : ""}`,
+          evento ? "Entregar a arte" : `Pedido de arte${cab.pecas.length ? ` (${cab.pecas.join(", ")})` : ""}`,
           salvo.prazo,
         ),
       ]);
@@ -272,7 +272,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
         m.ideia && `Ideia para a arte\n${m.ideia}`,
         "— — — — —",
         cab.uso && `Vai ser postado em: ${dataPorExtenso(cab.uso)}`,
-        m.prazo && `Entregar até: ${dataPorExtenso(m.prazo)}`,
+        m.prazo && `Prazo de entrega da arte: ${dataPorExtenso(m.prazo)}`,
         cab.pecas.length > 0 && `Peças: ${cab.pecas.join(", ")}`,
       ];
   const briefing = [
@@ -411,7 +411,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
             <p>
               <span className="rotulo">{evento ? "Responsável pela arte" : "Quem faz"}</span>
               {nomeDe(equipe, m.responsavel_id) ? `@${nomeDe(equipe, m.responsavel_id)}` : "—"}
-              {m.prazo && <> · {evento ? "ir para produção até" : "entregar até"} {dataPorExtenso(m.prazo)}</>}
+              {m.prazo && <> · prazo de entrega da arte: {dataPorExtenso(m.prazo)}</>}
             </p>
           ) : (
             <>
@@ -423,7 +423,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
                 </select>
               </label>
               <label>
-                {evento ? "Ir para produção até" : "Entregar até"}
+                Prazo de entrega da arte
                 <input id="mat-prazo" type="date" value={m.prazo ?? ""} onChange={(e) => set("prazo", e.target.value || undefined)} />
               </label>
             </>

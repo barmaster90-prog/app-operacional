@@ -51,7 +51,7 @@ export function montarTarefas(
     lista.push({
       chave: `${e.id}:arte`,
       tipo: "arte",
-      titulo: "Arte para produção",
+      titulo: "Entregar arte",
       evento: e,
       prazo: m?.prazo,
       responsavel_id: m?.responsavel_id,
