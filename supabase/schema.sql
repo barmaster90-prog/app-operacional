@@ -31,7 +31,7 @@ alter table public.financeiro add column if not exists impulso_valor numeric;
 create table if not exists public.perfis (
   id uuid primary key references auth.users (id) on delete cascade,
   nome text,
-  papel text not null default 'producao' check (papel in ('gestao', 'producao')),
+  papel text not null default 'producao' check (papel in ('gestao', 'producao', 'agencia')),
   funcao text -- Marketing, Agência, Audiovisual…: usado nas menções, não muda o acesso
 );
 alter table public.perfis add column if not exists funcao text;
@@ -51,6 +51,15 @@ create trigger ao_criar_conta after insert on auth.users
 create or replace function public.e_gestao() returns boolean
   language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.perfis where id = auth.uid() and papel = 'gestao');
+$$;
+
+-- Agência: só lê os briefings, copia, baixa e marca "em produção".
+alter table public.perfis drop constraint if exists perfis_papel_check;
+alter table public.perfis add constraint perfis_papel_check check (papel in ('gestao', 'producao', 'agencia'));
+
+create or replace function public.e_agencia() returns boolean
+  language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.perfis where id = auth.uid() and papel = 'agencia');
 $$;
 
 create table if not exists public.datas_especiais (
@@ -99,7 +108,7 @@ create table if not exists public.avisos (
   para_id uuid not null references public.perfis (id) on delete cascade,
   de_id uuid default auth.uid() references public.perfis (id) on delete set null,
   de_nome text,
-  tipo text not null check (tipo in ('mencao', 'tarefa', 'cobranca', 'producao')),
+  tipo text not null check (tipo in ('mencao', 'tarefa', 'cobranca', 'producao', 'novo')),
   titulo text not null,
   texto text,
   evento_id uuid references public.eventos (id) on delete cascade,
@@ -108,6 +117,8 @@ create table if not exists public.avisos (
   criado_em timestamptz not null default now(),
   lido boolean not null default false
 );
+alter table public.avisos drop constraint if exists avisos_tipo_check;
+alter table public.avisos add constraint avisos_tipo_check check (tipo in ('mencao', 'tarefa', 'cobranca', 'producao', 'novo'));
 create index if not exists avisos_para_idx on public.avisos (para_id, criado_em desc);
 
 -- Divulgação do evento: legenda, postagens, impulsionamento e audiovisual.
@@ -178,14 +189,14 @@ alter table public.pedidos_arte enable row level security;
 
 drop policy if exists "equipe lê pedidos" on public.pedidos_arte;
 create policy "equipe lê pedidos" on public.pedidos_arte for select to authenticated using (true);
--- Toda a equipe cria e edita pedidos (o marketing pede direto à agência).
+-- Gestão e Produção criam e editam pedidos (o marketing pede direto à agência). A Agência só lê.
 -- Apagar: só a Gestão ou quem criou o pedido.
 alter table public.pedidos_arte add column if not exists criado_por_id uuid default auth.uid() references public.perfis (id) on delete set null;
 drop policy if exists "gestão grava pedidos" on public.pedidos_arte;
 drop policy if exists "equipe cria pedidos" on public.pedidos_arte;
-create policy "equipe cria pedidos" on public.pedidos_arte for insert to authenticated with check (true);
+create policy "equipe cria pedidos" on public.pedidos_arte for insert to authenticated with check (not public.e_agencia());
 drop policy if exists "equipe edita pedidos" on public.pedidos_arte;
-create policy "equipe edita pedidos" on public.pedidos_arte for update to authenticated using (true) with check (true);
+create policy "equipe edita pedidos" on public.pedidos_arte for update to authenticated using (not public.e_agencia()) with check (not public.e_agencia());
 drop policy if exists "gestão ou autor apaga pedidos" on public.pedidos_arte;
 create policy "gestão ou autor apaga pedidos" on public.pedidos_arte for delete to authenticated
   using (public.e_gestao() or criado_por_id = auth.uid());
@@ -228,9 +239,9 @@ create policy "equipe lê divulgação" on public.divulgacoes for select to auth
 -- Toda a equipe programa posts e vídeos. O valor do impulsionamento fica na tabela financeiro (só Gestão).
 drop policy if exists "gestão grava divulgação" on public.divulgacoes;
 drop policy if exists "equipe cria divulgação" on public.divulgacoes;
-create policy "equipe cria divulgação" on public.divulgacoes for insert to authenticated with check (true);
+create policy "equipe cria divulgação" on public.divulgacoes for insert to authenticated with check (not public.e_agencia());
 drop policy if exists "equipe edita divulgação" on public.divulgacoes;
-create policy "equipe edita divulgação" on public.divulgacoes for update to authenticated using (true) with check (true);
+create policy "equipe edita divulgação" on public.divulgacoes for update to authenticated using (not public.e_agencia()) with check (not public.e_agencia());
 drop policy if exists "gestão apaga divulgação" on public.divulgacoes;
 create policy "gestão apaga divulgação" on public.divulgacoes for delete to authenticated using (public.e_gestao());
 
@@ -323,5 +334,5 @@ create policy "gestão grava imagens" on storage.objects for all to authenticate
 -- Imagens dos pedidos de arte: a equipe toda anexa e remove (ficam em pedidos/).
 drop policy if exists "equipe grava imagens dos pedidos" on storage.objects;
 create policy "equipe grava imagens dos pedidos" on storage.objects for all to authenticated
-  using (bucket_id = 'materiais' and name like 'pedidos/%')
-  with check (bucket_id = 'materiais' and name like 'pedidos/%');
+  using (bucket_id = 'materiais' and name like 'pedidos/%' and not public.e_agencia())
+  with check (bucket_id = 'materiais' and name like 'pedidos/%' and not public.e_agencia());

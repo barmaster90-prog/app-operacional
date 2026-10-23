@@ -15,7 +15,7 @@ export const FUNCOES = ["Gestão", "Marketing", "Agência", "Audiovisual", "Prod
 export const EQUIPE_EXEMPLO: Membro[] = [
   { id: "master", nome: "Master", funcao: "Gestão", papel: "gestao" },
   { id: "marketing", nome: "Marketing", funcao: "Marketing", papel: "producao" },
-  { id: "agencia", nome: "Agência", funcao: "Agência", papel: "producao" },
+  { id: "agencia", nome: "Agência", funcao: "Agência", papel: "agencia" },
   { id: "audiovisual", nome: "Audiovisual", funcao: "Audiovisual", papel: "producao" },
 ];
 

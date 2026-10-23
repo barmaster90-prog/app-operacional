@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { banco, type Usuario } from "../lib/banco.ts";
+import { banco, ehAgencia, type Usuario } from "../lib/banco.ts";
 import { casa, type Evento } from "../lib/tipos.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
@@ -22,7 +22,9 @@ interface Props {
 /** Ficha só de leitura, para quem não edita eventos (Produção). Não mostra valores. */
 export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou, abrir }: Props) {
   const [abrirMaterial, setAbrirMaterial] = useState(abrir === "material");
-  const [abrirDivulgacao, setAbrirDivulgacao] = useState(abrir === "divulgacao");
+  // A Agência não usa a Divulgação: o trabalho dela é a arte.
+  const verDivulgacao = !ehAgencia(usuario);
+  const [abrirDivulgacao, setAbrirDivulgacao] = useState(abrir === "divulgacao" && verDivulgacao);
   const [abrirConversa, setAbrirConversa] = useState(abrir === "conversa");
   const [mensagens, setMensagens] = useState<number | null>(null);
   const [resumo, setResumo] = useState("");
@@ -59,10 +61,12 @@ export function FichaEvento({ evento, usuario, datasExtras, onFechar, onMudou, a
             <strong>Material</strong>
             <small>{emProducao ? "Arte em produção" : "Arte em aberto"}</small>
           </button>
-          <button type="button" className="secao" onClick={() => setAbrirDivulgacao(true)}>
-            <strong>Divulgação</strong>
-            <small>{resumo || "Abrir"}</small>
-          </button>
+          {verDivulgacao && (
+            <button type="button" className="secao" onClick={() => setAbrirDivulgacao(true)}>
+              <strong>Divulgação</strong>
+              <small>{resumo || "Abrir"}</small>
+            </button>
+          )}
           <button type="button" className="secao" onClick={() => setAbrirConversa(true)}>
             <strong>Conversa</strong>
             <small>{mensagens ? `${mensagens} mensage${mensagens > 1 ? "ns" : "m"}` : "Escrever, chamar com @"}</small>

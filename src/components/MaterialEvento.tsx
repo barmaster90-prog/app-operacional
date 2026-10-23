@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { banco, ehGestao, type Usuario } from "../lib/banco.ts";
+import { banco, ehAgencia, ehGestao, type Usuario } from "../lib/banco.ts";
 import { CASAS, casa, type CasaId, type Evento } from "../lib/tipos.ts";
 import { FORMATOS_ANIMADO, topoDaArte, type Animado, type Material } from "../lib/material.ts";
 import type { DataEspecial } from "../lib/feriados.ts";
 import { baixarArquivo } from "../lib/baixar.ts";
 import { dataPorExtenso } from "../lib/datas.ts";
 import { PECAS, materialDoPedido, type Pedido } from "../lib/pedidos.ts";
-import { avisoDeTarefa, avisosDeMencao, enviarAvisos, type Alvo } from "../lib/notificar.ts";
+import { avisoDeTarefa, avisoParaAgencia, avisosDeMencao, enviarAvisos, type Alvo } from "../lib/notificar.ts";
 import type { AvisoNovo } from "../lib/avisos.ts";
 import { CampoTexto, TextoComMencoes } from "./CampoTexto.tsx";
 import { nomeDe, useEquipe } from "./Equipe.tsx";
@@ -23,6 +23,11 @@ interface Props {
   onPedido?(p: Pedido): void;
   onPedidoApagado?(id: string): void;
 }
+
+/** O Material já tem algo para a agência trabalhar? */
+const temBriefing = (m: Material | null | undefined) =>
+  Boolean(m && (m.descricao?.trim() || m.ideia?.trim() || m.anexos.length || m.links_fotos.length));
+const trechoBriefing = (m: Material) => (m.descricao?.trim() || m.ideia?.trim() || "").slice(0, 120) || undefined;
 
 type Cabecalho = Pick<Pedido, "titulo" | "casas" | "pecas" | "uso" | "entregue" | "criado_por" | "criado_por_id" | "criado_em">;
 
@@ -47,8 +52,9 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
   const salvoRef = useRef<Material | null>(null);
   const equipe = useEquipe();
   // No Material do evento, a Produção só lê, baixa e marca "em produção".
-  // Pedido de arte qualquer um da equipe cria e edita (o marketing pede direto à agência).
-  const leitura = evento ? !ehGestao(usuario) : false;
+  // Pedido de arte a Gestão e a Produção criam e editam (o marketing pede direto à agência).
+  // A Agência só lê, copia, baixa e marca "em produção".
+  const leitura = evento ? !ehGestao(usuario) : ehAgencia(usuario);
   const [pedidoId, setPedidoId] = useState(pedido?.id ?? "");
   const [cab, setCab] = useState<Cabecalho>(() => ({
     titulo: pedido?.titulo ?? "",
@@ -118,7 +124,14 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
       setAviso(msg);
       onMudou?.(salvo);
       const alvoSalvo: Alvo = evento ? alvo : { ...alvo, id: salvo.evento_id };
+      // Briefing novo para a agência: pedido salvo pela primeira vez, ou Material do evento que estava vazio.
+      const briefingNovo = evento ? !temBriefing(antes) && temBriefing(salvo) : !antes;
+      const novoResp = salvo.responsavel_id !== antes?.responsavel_id ? salvo.responsavel_id : undefined;
       await enviarAvisos([
+        ...(briefingNovo
+          ? avisoParaAgencia(equipe, usuario, alvoSalvo, destino, `Briefing novo · ${alvoSalvo.nome}`,
+              trechoBriefing(salvo), [novoResp])
+          : []),
         ...avisosDeMencao(
           [
             { onde: "Descrição", antes: antes?.descricao, depois: salvo.descricao },
@@ -336,7 +349,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
               <dl className="ficha">
                 <dt>Casa</dt><dd>{casas}</dd>
                 <dt>Peças</dt><dd>{cab.pecas.join(", ") || "—"}</dd>
-                <dt>Vai ser usada</dt><dd>{cab.uso ? dataPorExtenso(cab.uso) : "sem data"}</dd>
+                <dt>Vai ser postado</dt><dd>{cab.uso ? dataPorExtenso(cab.uso) : "sem data"}</dd>
               </dl>
             ) : (
               <div className="campos">
@@ -595,7 +608,7 @@ export function MaterialEvento({ evento, pedido, usuario, datasExtras, onFechar,
 
         <div className="modal-rodape">
           <span className="espaco" />
-          {!evento && pedidoId && (ehGestao(usuario) || cab.criado_por_id === usuario.id) && (
+          {!evento && pedidoId && !leitura && (ehGestao(usuario) || cab.criado_por_id === usuario.id) && (
             <button type="button" className="perigo" onClick={apagarPedido}>{apagar ? "Confirmar: apagar" : "Apagar"}</button>
           )}
           <button type="button" onClick={onFechar}>Fechar</button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Usuario } from "../lib/banco.ts";
+import { ehAgencia, type Usuario } from "../lib/banco.ts";
 import { casa } from "../lib/tipos.ts";
 import { dataPorExtenso, hojeISO } from "../lib/datas.ts";
 import { situacaoPedido, type Lembrete, type Pedido, type SituacaoPedido } from "../lib/pedidos.ts";
@@ -29,6 +29,7 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
   const equipe = useEquipe();
   const hoje = hojeISO();
   const [filtro, setFiltro] = useState<SituacaoPedido>("aberto");
+  const agencia = ehAgencia(usuario);
   const conta = (s: SituacaoPedido) => (pedidos ?? []).filter((p) => situacaoPedido(p) === s).length;
   const lista = (pedidos ?? [])
     .filter((p) => situacaoPedido(p) === filtro)
@@ -41,10 +42,10 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
           <h2>Pedidos de arte</h2>
           <p>Artes que não são de um evento: datas comemorativas, cardápio, vagas, avisos.</p>
         </div>
-        <button type="button" className="primario" onClick={() => onNovo()}>+ Novo pedido</button>
+        {!agencia && <button type="button" className="primario" onClick={() => onNovo()}>+ Novo pedido</button>}
       </div>
 
-      {lembretes.length > 0 && (
+      {!agencia && lembretes.length > 0 && (
         <section className="bloco-pendencias lembretes">
           <h3>Datas chegando sem arte pedida · {lembretes.length}</h3>
           <ul>
@@ -76,7 +77,7 @@ export function PedidosArte({ usuario, pedidos, lembretes, onAbrir, onNovo }: Pr
         <p className="vazio">Carregando…</p>
       ) : lista.length === 0 ? (
         <p className="vazio">
-          {filtro === "aberto" ? "Nenhum pedido em aberto. Use + Novo pedido." : "Nada aqui."}
+          {filtro === "aberto" ? (agencia ? "Nenhum pedido em aberto." : "Nenhum pedido em aberto. Use + Novo pedido.") : "Nada aqui."}
         </p>
       ) : (
         <ul className="lista-pedidos">

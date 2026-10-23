@@ -9,9 +9,9 @@ import type { Aviso, AvisoNovo, Comentario } from "./avisos.ts";
 import { normalizarPedido, type Pedido } from "./pedidos.ts";
 
 /** Gestão vê e edita tudo. Produção vê a agenda e o Material e marca "em produção", sem ver valores. */
-export type Papel = "gestao" | "producao";
+export type Papel = "gestao" | "producao" | "agencia";
 
-export const NOME_PAPEL: Record<Papel, string> = { gestao: "Gestão", producao: "Produção" };
+export const NOME_PAPEL: Record<Papel, string> = { gestao: "Gestão", producao: "Produção", agencia: "Agência" };
 
 export interface Usuario {
   id: string;
@@ -21,6 +21,8 @@ export interface Usuario {
 }
 
 export const ehGestao = (u: Usuario) => u.papel === "gestao";
+/** Agência só lê os briefings, copia, baixa e marca "em produção". */
+export const ehAgencia = (u: Pick<Usuario, "papel">) => u.papel === "agencia";
 
 /** Tira cachês e observações das atrações (o que a Produção não pode ver). */
 export function semValores(e: Evento): Evento {
@@ -94,7 +96,7 @@ function bancoSupabase(sb: SupabaseClient): Banco {
   async function paraUsuario(u: ContaSupabase): Promise<Usuario> {
     const email = u.email ?? "";
     const { data } = await sb.from("perfis").select("nome, papel").eq("id", u.id).maybeSingle();
-    return { id: u.id, email, nome: data?.nome || email.split("@")[0], papel: data?.papel === "gestao" ? "gestao" : "producao" };
+    return { id: u.id, email, nome: data?.nome || email.split("@")[0], papel: data?.papel === "gestao" || data?.papel === "agencia" ? data.papel : "producao" };
   }
 
   // O armazenamento é privado: gera links temporários para mostrar as imagens.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { banco, ehGestao, NOME_PAPEL, type DadosPainel, type Usuario } from "../lib/banco.ts";
+import { banco, ehAgencia, ehGestao, NOME_PAPEL, type DadosPainel, type Usuario } from "../lib/banco.ts";
 import { ABAS, CASAS, casa, eventoDaAba, type AbaId, type Evento } from "../lib/tipos.ts";
 import { DIAS_SEMANA_CURTO, MESES, gradeDoMes, hojeISO, partes, somarDias, type DataISO } from "../lib/datas.ts";
 import { datasFixasDoAno, type DataEspecial } from "../lib/feriados.ts";
@@ -119,6 +119,11 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
     const t = setInterval(() => banco.avisos().then(setAvisos).catch(() => {}), 60_000);
     return () => clearInterval(t);
   }, [carregarExtras]);
+
+  // A Agência não tem a tela de Marketing.
+  useEffect(() => {
+    if (visao === "marketing" && ehAgencia(usuario)) setVisao("agenda");
+  }, [visao, usuario]);
 
   useEffect(() => {
     try {
@@ -271,11 +276,11 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
       </header>
 
       <nav className="visoes" aria-label="Telas">
-        {VISOES.map((v) => (
+        {VISOES.filter((v) => !(v.id === "marketing" && ehAgencia(usuario))).map((v) => (
           <button key={v.id} type="button" className={v.id === visao ? "ativa" : ""} aria-current={v.id === visao ? "page" : undefined} onClick={() => setVisao(v.id)}>
             {v.nome}
             {v.id === "pendencias" && atrasadasMinhas > 0 && <span className="contador">{atrasadasMinhas}</span>}
-            {v.id === "pedidos" && lembretes.length > 0 && <span className="contador">{lembretes.length}</span>}
+            {v.id === "pedidos" && !ehAgencia(usuario) && lembretes.length > 0 && <span className="contador">{lembretes.length}</span>}
           </button>
         ))}
       </nav>
@@ -283,7 +288,7 @@ export function Agenda({ usuario }: { usuario: Usuario }) {
       {recado && <p className="recado" role="status">{recado}</p>}
 
       {visao === "pendencias" && <Pendencias usuario={usuario} dados={dados} onAbrir={abrirEvento} onCobrar={cobrar} />}
-      {visao === "marketing" && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} />}
+      {visao === "marketing" && !ehAgencia(usuario) && <SemanaMarketing usuario={usuario} dados={dados} onAbrir={abrirEvento} onVerPendencias={() => setVisao("pendencias")} />}
       {visao === "pedidos" && (
         <PedidosArte usuario={usuario} pedidos={dados?.pedidos ?? null} lembretes={lembretes} onAbrir={setPedidoAberto} onNovo={novoPedido} />
       )}

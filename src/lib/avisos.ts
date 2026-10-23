@@ -1,6 +1,7 @@
 import type { DataISO } from "./datas.ts";
 
-export type TipoAviso = "mencao" | "tarefa" | "cobranca" | "producao";
+/** "novo": evento confirmado ou briefing novo, para a agência. */
+export type TipoAviso = "mencao" | "tarefa" | "cobranca" | "producao" | "novo";
 /** Qual parte do evento o aviso abre. */
 export type Destino = "evento" | "material" | "divulgacao" | "conversa" | "pedido";
 

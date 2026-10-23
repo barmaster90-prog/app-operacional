@@ -490,3 +490,4 @@ section.pedidos { margin-top: 16px; display: flex; flex-direction: column; gap: 
   .chip.chip-mkt .sinal { display: none; }
   .painel-marketing .especial { display: block; }
 }
+.icone.novo { background: #7cc4ff; }

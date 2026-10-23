@@ -64,6 +64,21 @@ export function avisoDeTarefa(
   return [{ ...base(evento, autor, abrir), para_id: paraId, tipo: "tarefa", titulo: `Nova tarefa para você · ${evento.nome}`, texto: `${oque}${quando}` }];
 }
 
+/** Avisa todo mundo com perfil Agência (menos quem fez e quem já recebeu outro aviso). */
+export function avisoParaAgencia(
+  equipe: Membro[],
+  autor: Usuario,
+  alvo: Alvo,
+  abrir: Destino,
+  titulo: string,
+  texto?: string,
+  exceto: (string | undefined)[] = [],
+): AvisoNovo[] {
+  return equipe
+    .filter((m) => m.papel === "agencia" && m.id !== autor.id && !exceto.includes(m.id))
+    .map((m) => ({ ...base(alvo, autor, abrir), para_id: m.id, tipo: "novo" as const, titulo, texto }));
+}
+
 /** Manda os avisos sem travar quem está salvando, se der erro. */
 export async function enviarAvisos(lista: AvisoNovo[]): Promise<void> {
   try {

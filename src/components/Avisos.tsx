@@ -14,7 +14,7 @@ interface Props {
 
 type Aba = "todos" | "atrasos" | "mencoes";
 
-const ICONE: Record<Aviso["tipo"], string> = { mencao: "@", tarefa: "+", cobranca: "!", producao: "✓" };
+const ICONE: Record<Aviso["tipo"], string> = { mencao: "@", tarefa: "+", cobranca: "!", producao: "✓", novo: "★" };
 
 function quando(iso: string): string {
   const d = new Date(iso);

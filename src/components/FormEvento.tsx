@@ -8,6 +8,8 @@ import { DivulgacaoEvento } from "./DivulgacaoEvento.tsx";
 import { ConversaEvento } from "./ConversaEvento.tsx";
 import type { Destino } from "../lib/avisos.ts";
 import { resumoDivulgacao } from "../lib/divulgacao.ts";
+import { avisoParaAgencia, enviarAvisos } from "../lib/notificar.ts";
+import { useEquipe } from "./Equipe.tsx";
 
 interface Props {
   inicial: Partial<Evento>;
@@ -34,6 +36,7 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
   );
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const equipe = useEquipe();
   const [confirmarApagar, setConfirmarApagar] = useState(false);
   const [abrirMaterial, setAbrirMaterial] = useState(abrir === "material");
   const [abrirDivulgacao, setAbrirDivulgacao] = useState(abrir === "divulgacao");
@@ -68,7 +71,7 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
       .filter((a) => a.nome.trim())
       .map((a) => ({ nome: a.nome.trim(), cache: lerReais(a.cache), obs: a.obs.trim() || undefined }));
     try {
-      await banco.salvarEvento({
+      const salvo = await banco.salvarEvento({
         id: ev.id,
         data: ev.data!,
         casas: casasSel,
@@ -82,6 +85,13 @@ export function FormEvento({ inicial, usuario, datasExtras, onFechar, onSalvo, o
         promocao: ev.promocao || undefined,
         criado_por: ev.criado_por ?? usuario.nome,
       });
+      // A agência fica sabendo quando um evento é confirmado (Ideia e Negociando ainda podem cair).
+      if (salvo.status === "Confirmado" && inicial.status !== "Confirmado") {
+        await enviarAvisos(
+          avisoParaAgencia(equipe, usuario, { id: salvo.id, nome: salvo.nome, data: salvo.data }, "material", `Evento confirmado · ${salvo.nome}`,
+            `${dataPorExtenso(salvo.data)} · ${salvo.casas.map((c) => casa(c).nome).join(" + ")}`),
+        );
+      }
       onSalvo();
     } catch (er) {
       setErro(er instanceof Error ? er.message : "Não foi possível salvar.");
